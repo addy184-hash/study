@@ -1,9 +1,17 @@
 """智能学习伴侣 - LangGraph多智能体核心模块"""
 import json
+import re
+from datetime import datetime, timedelta
 from typing import TypedDict, List, Dict, Any
 from openai import OpenAI
 from langgraph.graph import StateGraph, END
 import config
+
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 
 
 # ========== LLM 基础调用 ==========
@@ -41,6 +49,263 @@ def call_llm_text(system_prompt: str, user_prompt: str, temperature: float = 0.5
         return resp.choices[0].message.content
     except Exception as e:
         return f"回答时出错：{str(e)}"
+
+
+# ========== 工具1：B站搜索（Researcher Agent使用） ==========
+def search_bilibili(keyword: str, limit: int = 3) -> list:
+    """调用B站搜索API，返回真实视频链接，不需要API Key"""
+    if not HAS_REQUESTS:
+        return []
+    try:
+        url = "https://api.bilibili.com/x/web-interface/search/type"
+        params = {"search_type": "video", "keyword": keyword, "page": 1}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://www.bilibili.com"
+        }
+        resp = requests.get(url, params=params, headers=headers, timeout=8)
+        data = resp.json()
+        results = []
+        for item in data.get("data", {}).get("result", [])[:limit]:
+            title = re.sub(r'<[^>]+>', '', item.get("title", ""))
+            bvid = item.get("bvid", "")
+            results.append({
+                "name": title,
+                "type": "视频",
+                "url": f"https://www.bilibili.com/video/{bvid}",
+                "author": item.get("author", ""),
+                "play": item.get("play", 0)
+            })
+        return results
+    except:
+        return []
+
+
+def search_resources_for_kp(kp_name: str, preference: list = None) -> dict:
+    """为单个知识点搜索真实资源，返回beginner/advanced/practice三级"""
+    # 入门：搜教程
+    beginner = search_bilibili(f"{kp_name} 教程 入门", 2)
+    # 进阶：搜实战
+    advanced = search_bilibili(f"{kp_name} 实战 进阶", 2)
+    # 练习：搜题目
+    practice = search_bilibili(f"{kp_name} 练习题 面试题", 2)
+
+    # 如果搜索结果为空，用LLM生成占位资源
+    if not beginner and not advanced and not practice:
+        return {
+            "beginner": [{"name": f"{kp_name}入门教程", "type": "视频", "url": ""}],
+            "advanced": [{"name": f"{kp_name}进阶实战", "type": "文档", "url": ""}],
+            "practice": [{"name": f"{kp_name}练习题", "type": "实战", "url": ""}]
+        }
+    return {"beginner": beginner, "advanced": advanced, "practice": practice}
+
+
+# ========== 工具2：ICS日历导出（Coach Agent使用） ==========
+def generate_ics(plan: dict, goal: str, start_date: str = None) -> str:
+    """从学习计划生成ICS日历文件，可导入手机/电脑日历"""
+    if not start_date:
+        start_date = datetime.now().strftime("%Y%m%d")
+
+    ics_lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Study Planner//CN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+    ]
+
+    day_map = {"周一": 0, "周二": 1, "周三": 2, "周四": 3, "周五": 4, "周六": 5, "周日": 6}
+    base_date = datetime.strptime(start_date, "%Y%m%d")
+
+    for week in plan.get("weekly_plan", []):
+        week_num = week.get("week", 1)
+        for day in week.get("days", []):
+            day_name = day.get("day", "")
+            task = day.get("task", "")
+            hours = float(day.get("hours", 1.5))
+            task_type = day.get("type", "学习")
+
+            # 计算日期
+            weekday = day_map.get(day_name, 0)
+            event_date = base_date + timedelta(weeks=week_num - 1, days=weekday)
+            date_str = event_date.strftime("%Y%m%d")
+
+            # 事件时间：默认上午9点开始
+            start_hour = 9
+            end_hour = start_hour + int(hours)
+            dtstart = f"{date_str}T{start_hour:02d}0000"
+            dtend = f"{date_str}T{end_hour:02d}0000"
+
+            uid = f"study-{week_num}-{day_name}-{datetime.now().strftime('%Y%m%d%H%M%S')}@studyplanner"
+
+            ics_lines.extend([
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{datetime.now().strftime('%Y%m%dT%H%M%S')}",
+                f"DTSTART:{dtstart}",
+                f"DTEND:{dtend}",
+                f"SUMMARY:[{task_type}] {goal} - {task}",
+                f"DESCRIPTION:学习计划自动生成\\n目标：{goal}\\n类型：{task_type}\\n预计：{hours}小时",
+                "BEGIN:VALARM",
+                "TRIGGER:-PT30M",
+                "ACTION:DISPLAY",
+                "DESCRIPTION:该学习了！",
+                "END:VALARM",
+                "END:VEVENT",
+            ])
+
+    # 复习节点
+    for node in plan.get("review_nodes", []):
+        after_day = node.get("after_day", 1)
+        content = node.get("content", "复习")
+        review_date = base_date + timedelta(days=after_day)
+        date_str = review_date.strftime("%Y%m%d")
+        uid = f"review-{after_day}-{datetime.now().strftime('%Y%m%d%H%M%S')}@studyplanner"
+        ics_lines.extend([
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{datetime.now().strftime('%Y%m%dT%H%M%S')}",
+            f"DTSTART:{date_str}T190000",
+            f"DTEND:{date_str}T200000",
+            f"SUMMARY:[复习] {content}",
+            f"DESCRIPTION:艾宾浩斯复习节点\\n相关阶段：{node.get('related_stage','')}",
+            "END:VEVENT",
+        ])
+
+    ics_lines.append("END:VCALENDAR")
+    return "\r\n".join(ics_lines)
+
+
+# ========== 工具3：测试题系统 ==========
+def generate_quiz(stage: dict, num: int = 5) -> dict:
+    """生成阶段测试题（3选择2简答），含答案和解析"""
+    system = """你是出题专家，为学习阶段生成测试题，含答案和详细解析。
+输出严格JSON：
+{"questions":[{"type":"选择","question":"题目","options":["A选项","B选项","C选项","D选项"],"answer":"A","explanation":"解析"},{"type":"简答","question":"题目","answer":"参考答案","explanation":"评分要点"}]}
+只返回JSON。"""
+    user = f"为以下阶段出{num}道题（3选择2简答）：\n{json.dumps(stage, ensure_ascii=False)}"
+    result = call_llm(system, user)
+    return result if "error" not in result else {"questions": []}
+
+
+def grade_quiz(questions: list, user_answers: list) -> dict:
+    """批改测试题，返回得分、错题、详细反馈"""
+    correct = 0
+    wrong = []
+    details = []
+
+    for i, (q, ua) in enumerate(zip(questions, user_answers)):
+        q_type = q.get("type", "")
+        correct_answer = q.get("answer", "")
+        if q_type == "选择":
+            is_correct = (ua or "").strip().upper() == correct_answer.strip().upper()
+        else:
+            # 简答题：用LLM判断
+            is_correct = _grade_short_answer(q.get("question", ""), ua, correct_answer)
+        if is_correct:
+            correct += 1
+        else:
+            wrong.append({
+                "question": q.get("question", ""),
+                "your_answer": ua or "未作答",
+                "correct_answer": correct_answer,
+                "explanation": q.get("explanation", "")
+            })
+        details.append({
+            "question": q.get("question", ""),
+            "your_answer": ua or "未作答",
+            "correct": is_correct,
+            "correct_answer": correct_answer,
+            "explanation": q.get("explanation", "")
+        })
+
+    score = int(correct / len(questions) * 100) if questions else 0
+    return {
+        "score": score,
+        "correct": correct,
+        "total": len(questions),
+        "wrong": wrong,
+        "details": details
+    }
+
+
+def _grade_short_answer(question: str, user_answer: str, reference: str) -> bool:
+    """用LLM判断简答题是否正确"""
+    if not user_answer or len(user_answer) < 5:
+        return False
+    system = """判断学生回答是否正确，只返回JSON：{"correct": true/false}"""
+    user = f"题目：{question}\n参考答案：{reference}\n学生回答：{user_answer}"
+    result = call_llm(system, user)
+    return result.get("correct", False)
+
+
+def _parse_quiz_answers(message: str, num: int) -> list:
+    """解析用户的测试题答案，支持格式：1.A 2.回答 3.B 或 A B C 或 1A2B3C"""
+    answers = [""] * num
+    # 格式1：1.A 2.xxx 3.B
+    matches = re.findall(r'(\d+)[\.\、\s]*([A-Da-d]|[^\s]+)', message)
+    if matches:
+        for m in matches:
+            idx = int(m[0]) - 1
+            if 0 <= idx < num:
+                answers[idx] = m[1].strip()
+    else:
+        # 格式2：A B C D（纯字母）
+        letters = re.findall(r'[A-Da-d]', message)
+        for i, letter in enumerate(letters[:num]):
+            answers[i] = letter.upper()
+    return answers
+
+
+# ========== 工具4：用户记忆系统 ==========
+def update_user_profile(profile: dict, conv: dict, quiz_result: dict = None) -> dict:
+    """更新用户画像：薄弱点、学习习惯、平均成绩"""
+    if not profile:
+        profile = {
+            "total_quizzes": 0,
+            "avg_score": 0,
+            "weak_points": [],
+            "strong_points": [],
+            "total_study_hours": 0,
+            "completed_kps": [],
+            "preference": []
+        }
+
+    # 更新已掌握知识点
+    completed = conv.get("completed_kps", [])
+    profile["completed_kps"] = list(set(profile.get("completed_kps", []) + completed))
+
+    # 更新学习时长
+    profile["total_study_hours"] = profile.get("total_study_hours", 0) + conv.get("hours", 0)
+
+    # 更新测试成绩
+    if quiz_result:
+        profile["total_quizzes"] = profile.get("total_quizzes", 0) + 1
+        old_avg = profile.get("avg_score", 0)
+        n = profile["total_quizzes"]
+        profile["avg_score"] = int((old_avg * (n - 1) + quiz_result["score"]) / n)
+
+        # 错题加入薄弱点
+        for w in quiz_result.get("wrong", []):
+            # 从题目中提取知识点关键词
+            kp = _extract_kp_from_question(w["question"])
+            if kp and kp not in profile.get("weak_points", []):
+                profile["weak_points"].append(kp)
+
+        # 全对加入强项
+        if quiz_result["score"] == 100:
+            stage_name = conv.get("current_stage", "")
+            if stage_name and stage_name not in profile.get("strong_points", []):
+                profile["strong_points"].append(stage_name)
+
+    return profile
+
+
+def _extract_kp_from_question(question: str) -> str:
+    """从题目中提取知识点关键词"""
+    system = """从题目中提取核心知识点关键词，只返回JSON：{"keyword": "知识点"}"""
+    result = call_llm(system, question)
+    return result.get("keyword", "")
 
 
 # ========== 多智能体共享状态 ==========
@@ -86,24 +351,50 @@ def planner_agent(state: LearningState) -> Dict[str, Any]:
 def researcher_agent(state: LearningState) -> Dict[str, Any]:
     """
     角色：学习资源研究员
-    职责：根据技能树为每个知识点匹配学习资源
+    职责：先用LLM生成资源框架，再调用B站搜索工具补全真实链接
     读取：skill_tree, preference
-    写入：resources
+    写入：resources（含真实URL）
     """
     pref_text = "、".join(state.get("preference", [])) or "无特殊偏好"
     skill_tree = state.get("skill_tree", {})
-    system = f"""你是【学习资源研究员】，为每个知识点匹配资源。
+
+    # 第一步：LLM生成资源框架（资源名称和类型）
+    system = f"""你是【学习资源研究员】，为每个知识点匹配资源名称和类型。
 用户偏好：{pref_text}，请优先推荐符合偏好的资源类型。
-资源类型标注type：视频/文档/书籍/实战/刷题。
+资源类型：视频/文档/书籍/实战/刷题。
 输出严格JSON：
 {{"resources":[{{"knowledge_point":"知识点","beginner":[{{"name":"资源名","type":"视频"}}],"advanced":[{{"name":"资源名","type":"文档"}}],"practice":[{{"name":"练习名","type":"实战"}}]}}]}}
 只返回JSON。"""
     user = f"为以下技能树匹配资源：\n{json.dumps(skill_tree, ensure_ascii=False)}\n用户偏好：{pref_text}"
+    framework = call_llm(system, user)
 
-    result = call_llm(system, user)
-    if "error" in result:
-        return {"error": f"资源推荐智能体出错：{result['error']}"}
-    return {"resources": result}
+    if "error" in framework:
+        return {"error": f"资源推荐智能体出错：{framework['error']}"}
+
+    # 第二步：调用B站搜索工具，为每个知识点补全真实链接
+    resources_list = framework.get("resources", [])
+    for item in resources_list:
+        kp_name = item.get("knowledge_point", "")
+        # 用知识点名称搜索真实视频
+        search_results = search_bilibili(f"{kp_name} 教程", 3)
+        if search_results:
+            # 把搜索结果合并到beginner
+            existing = item.get("beginner", [])
+            for r in search_results:
+                if not any(e.get("name") == r["name"] for e in existing):
+                    existing.append(r)
+            item["beginner"] = existing[:5]
+
+        # 搜索实战资源
+        practice_results = search_bilibili(f"{kp_name} 实战", 2)
+        if practice_results:
+            existing_p = item.get("practice", [])
+            for r in practice_results:
+                if not any(e.get("name") == r["name"] for e in existing_p):
+                    existing_p.append(r)
+            item["practice"] = existing_p[:3]
+
+    return {"resources": {"resources": resources_list}}
 
 
 # ========== 智能体3：计划调优智能体 (Coach Agent) ==========
@@ -474,28 +765,95 @@ def process_chat_message(conv: dict, user_message: str) -> str:
             return get_next_step(conv)
 
         if action == "quiz":
+            # 检查是否正在答题中
+            if conv.get("quiz_active"):
+                return "你正在答题中，请先回答当前题目。回答格式：1.A 2.xxx 3.B ..."
+
             # 生成当前阶段的测试题
             skill_tree = conv.get("skill_tree", {})
             plans = skill_tree.get("plans", [])
             if plans:
                 stages = plans[0].get("stages", [])
                 # 找第一个未完全掌握的阶段
+                target_stage = None
                 for stage in stages:
                     kps = stage.get("knowledge_points", [])
                     stage_kps = [kp.get("name","") if isinstance(kp,dict) else str(kp) for kp in kps]
                     if not all(k in conv.get("completed_kps", []) for k in stage_kps):
-                        quiz = generate_quiz(stage)
-                        if "error" not in quiz:
-                            questions = quiz.get("questions", [])
-                            reply = f"为你准备了「{stage.get('stage_name','')}」阶段的测试题：\n\n"
-                            for i, q in enumerate(questions, 1):
-                                reply += f"{i}. [{q.get('type','')}] {q.get('question','')}\n"
-                                if q.get("options"):
-                                    for opt in q["options"]:
-                                        reply += f"   {opt}\n"
-                            reply += "\n做完后告诉我你的答案，我帮你批改！"
-                            return reply
+                        target_stage = stage
+                        conv["current_stage"] = stage.get("stage_name", "")
+                        break
+
+                if target_stage:
+                    quiz = generate_quiz(target_stage, 5)
+                    questions = quiz.get("questions", [])
+                    if questions:
+                        conv["quiz_active"] = True
+                        conv["quiz_questions"] = questions
+                        conv["quiz_answers"] = [""] * len(questions)
+
+                        reply = f"为你准备了「{target_stage.get('stage_name','')}」阶段的测试题（共{len(questions)}题）：\n\n"
+                        for i, q in enumerate(questions, 1):
+                            q_type = q.get("type", "")
+                            reply += f"{i}. [{q_type}] {q.get('question','')}\n"
+                            if q.get("options"):
+                                for j, opt in enumerate(q["options"]):
+                                    letter = chr(65 + j)
+                                    reply += f"   {letter}. {opt}\n"
+                            reply += "\n"
+                        reply += "请按顺序回答，格式：1.A 2.你的回答 3.C ...\n回答后我会批改并记录成绩。"
+                        return reply
             return "还没有可测试的阶段，先去学习吧。"
+
+        # 检查是否正在答题中（用户输入的是答案）
+        if conv.get("quiz_active") and conv.get("quiz_questions"):
+            questions = conv["quiz_questions"]
+            # 解析用户答案
+            user_answers = _parse_quiz_answers(user_message, len(questions))
+            if any(user_answers):
+                # 批改
+                result = grade_quiz(questions, user_answers)
+                conv["quiz_active"] = False
+                conv["quiz_result"] = result
+                conv["quiz_questions"] = []
+
+                # 记录到测试历史
+                if "quiz_history" not in conv:
+                    conv["quiz_history"] = []
+                conv["quiz_history"].append({
+                    "stage": conv.get("current_stage", ""),
+                    "score": result["score"],
+                    "correct": result["correct"],
+                    "total": result["total"],
+                    "wrong": result["wrong"],
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                })
+
+                # 更新用户画像
+                profile = conv.get("user_profile", {})
+                conv["user_profile"] = update_user_profile(profile, conv, result)
+
+                # 生成回复
+                reply = f"测试完成！得分：{result['score']}分（{result['correct']}/{result['total']}正确）\n\n"
+                if result["score"] >= 80:
+                    reply += "表现优秀！这个阶段掌握得很好，可以继续学习下一阶段。\n\n"
+                elif result["score"] >= 60:
+                    reply += "还不错，但有一些知识点需要加强。\n\n"
+                else:
+                    reply += "这个阶段还需要多复习，建议重新学习相关知识点。\n\n"
+
+                if result["wrong"]:
+                    reply += "错题回顾：\n"
+                    for i, w in enumerate(result["wrong"], 1):
+                        reply += f"{i}. {w['question']}\n"
+                        reply += f"   你的答案：{w['your_answer']}\n"
+                        reply += f"   正确答案：{w['correct_answer']}\n"
+                        reply += f"   解析：{w['explanation']}\n\n"
+
+                reply += "成绩已记录，可以在下方「学习统计」查看历史成绩。"
+                return reply
+            else:
+                return "没有识别到答案，请按格式回答：1.A 2.回答内容 3.B ..."
 
         if action == "adjust":
             # 先检查是否是在说某个知识点掌握了

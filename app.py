@@ -3,7 +3,7 @@ import streamlit as st
 import json
 import uuid
 from datetime import datetime
-from agents import process_chat_message
+from agents import process_chat_message, generate_ics
 from streamlit_js_eval import streamlit_js_eval
 import config
 
@@ -185,7 +185,7 @@ if user_input:
 # ========== 详情面板：技能树/资源/计划 ==========
 if current_conv.get("skill_tree"):
     st.markdown("---")
-    tab1, tab2, tab3, tab4 = st.tabs(["技能树", "资源推荐", "学习计划", "学习进度"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["技能树", "资源推荐", "学习计划", "测试记录", "学习统计"])
 
     with tab1:
         tree = current_conv["skill_tree"]
@@ -248,10 +248,31 @@ if current_conv.get("skill_tree"):
                         for r in items:
                             name = r.get("name", "") if isinstance(r, dict) else str(r)
                             rtype = r.get("type", "") if isinstance(r, dict) else ""
-                            st.markdown(f'- **{name}** ({rtype})  [B站搜索](https://search.bilibili.com/all?keyword={kp_name} {name}) · [百度搜索](https://www.baidu.com/s?wd={kp_name} {name})')
+                            url = r.get("url", "") if isinstance(r, dict) else ""
+                            author = r.get("author", "") if isinstance(r, dict) else ""
+                            if url:
+                                # 真实链接，可直接点击
+                                author_info = f" - UP: {author}" if author else ""
+                                st.markdown(f'- [{name}]({url}) ({rtype}){author_info}')
+                            else:
+                                st.markdown(f'- **{name}** ({rtype})  [B站搜索](https://search.bilibili.com/all?keyword={kp_name} {name}) · [百度搜索](https://www.baidu.com/s?wd={kp_name} {name})')
 
     with tab3:
         plan = current_conv.get("plan", {})
+        goal = current_conv.get("goal", "学习计划")
+
+        # ICS下载按钮
+        if plan.get("weekly_plan"):
+            ics_content = generate_ics(plan, goal)
+            st.download_button(
+                "下载日历文件 (导入手机/电脑日历)",
+                data=ics_content,
+                file_name=f"{goal}_学习计划.ics",
+                mime="text/calendar",
+                use_container_width=True
+            )
+            st.caption("下载后双击即可导入系统日历，支持iPhone/安卓/Windows/Mac，含提前30分钟提醒")
+
         review_nodes = plan.get("review_nodes", [])
         if review_nodes:
             st.markdown("**艾宾浩斯复习节点**")
@@ -263,8 +284,53 @@ if current_conv.get("skill_tree"):
                     st.markdown(f'<div class="timeline-item"><div style="font-weight:600;font-size:0.9rem;">{day.get("day","")} ({day.get("hours","")}h · {day.get("type","")})</div><div style="color:{sub_text};font-size:0.85rem;margin-top:0.2rem;">{day.get("task","")}</div></div>', unsafe_allow_html=True)
 
     with tab4:
+        st.markdown("**测试记录**")
+        quiz_history = current_conv.get("quiz_history", [])
+        if not quiz_history:
+            st.info("还没有测试记录，在对话框说「考考我」即可开始测试")
+        else:
+            scores = [q["score"] for q in quiz_history]
+            avg_score = int(sum(scores) / len(scores))
+            m1, m2, m3 = st.columns(3)
+            m1.markdown(f'<div class="metric-card"><div class="metric-value">{len(quiz_history)}</div><div class="metric-label">测试次数</div></div>', unsafe_allow_html=True)
+            m2.markdown(f'<div class="metric-card"><div class="metric-value">{avg_score}分</div><div class="metric-label">平均成绩</div></div>', unsafe_allow_html=True)
+            m3.markdown(f'<div class="metric-card"><div class="metric-value">{max(scores)}分</div><div class="metric-label">最高分</div></div>', unsafe_allow_html=True)
+
+            st.markdown("---")
+            for q in reversed(quiz_history):
+                with st.expander(f"{q['stage']}  |  {q['date']}  |  {q['score']}分"):
+                    st.markdown(f"正确：{q['correct']}/{q['total']}")
+                    if q.get("wrong"):
+                        st.markdown("**错题：**")
+                        for w in q["wrong"]:
+                            st.markdown(f"- {w['question']}")
+                            st.markdown(f"  正确答案：{w['correct_answer']}")
+
+    with tab5:
+        st.markdown("**学习统计**")
+        profile = current_conv.get("user_profile", {})
         completed = current_conv.get("completed_kps", [])
-        st.markdown(f"**已掌握知识点（{len(completed)}个）**")
+
+        m1, m2, m3, m4 = st.columns(4)
+        m1.markdown(f'<div class="metric-card"><div class="metric-value">{len(completed)}</div><div class="metric-label">已掌握知识点</div></div>', unsafe_allow_html=True)
+        m2.markdown(f'<div class="metric-card"><div class="metric-value">{profile.get("total_quizzes", 0)}</div><div class="metric-label">测试次数</div></div>', unsafe_allow_html=True)
+        m3.markdown(f'<div class="metric-card"><div class="metric-value">{profile.get("avg_score", 0)}分</div><div class="metric-label">平均成绩</div></div>', unsafe_allow_html=True)
+        m4.markdown(f'<div class="metric-card"><div class="metric-value">{current_conv.get("hours", 0)}h/天</div><div class="metric-label">每日投入</div></div>', unsafe_allow_html=True)
+
+        st.markdown("---")
+        weak = profile.get("weak_points", [])
+        strong = profile.get("strong_points", [])
+        if weak:
+            st.markdown("**需要加强的知识点：**")
+            for w in weak:
+                st.markdown(f"- {w}")
+        if strong:
+            st.markdown("**已掌握扎实的阶段：**")
+            for s in strong:
+                st.markdown(f"- {s}")
+
+        st.markdown("---")
+        st.markdown("**已掌握知识点：**")
         if completed:
             for kp in completed:
                 st.markdown(f"- {kp}")
