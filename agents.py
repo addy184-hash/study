@@ -373,6 +373,74 @@ def _parse_quiz_answers(message: str, num: int) -> list:
     return answers
 
 
+def _plan_stats(plan: dict) -> dict:
+    """提取计划的统计信息，用于对比新旧计划"""
+    weekly = plan.get("weekly_plan", [])
+    total_weeks = len(weekly)
+    total_tasks = sum(len(w.get("days", [])) for w in weekly)
+    total_hours = sum(d.get("hours", 0) for w in weekly for d in w.get("days", []))
+    review_count = len(plan.get("review_nodes", []))
+    return {
+        "weeks": total_weeks,
+        "tasks": total_tasks,
+        "hours": round(total_hours, 1),
+        "reviews": review_count
+    }
+
+
+def _compare_plans(old_plan: dict, new_plan: dict, feedback: str) -> str:
+    """对比新旧计划，生成具体的变化说明"""
+    old = _plan_stats(old_plan)
+    new = _plan_stats(new_plan)
+
+    changes = []
+
+    # 周数变化
+    if new["weeks"] != old["weeks"]:
+        if new["weeks"] < old["weeks"]:
+            changes.append(f"总周期从 {old['weeks']} 周压缩到 {new['weeks']} 周")
+        else:
+            changes.append(f"总周期从 {old['weeks']} 周延长到 {new['weeks']} 周")
+
+    # 任务数变化
+    if new["tasks"] != old["tasks"]:
+        if new["tasks"] < old["tasks"]:
+            changes.append(f"学习任务从 {old['tasks']} 个精简到 {new['tasks']} 个")
+        else:
+            changes.append(f"学习任务从 {old['tasks']} 个增加到 {new['tasks']} 个")
+
+    # 学时变化
+    if new["hours"] != old["hours"]:
+        if new["hours"] < old["hours"]:
+            changes.append(f"总学时从 {old['hours']} 小时减少到 {new['hours']} 小时")
+        else:
+            changes.append(f"总学时从 {old['hours']} 小时增加到 {new['hours']} 小时")
+
+    # 复习节点变化
+    if new["reviews"] != old["reviews"]:
+        if new["reviews"] > old["reviews"]:
+            changes.append(f"复习节点从 {old['reviews']} 个增加到 {new['reviews']} 个")
+        else:
+            changes.append(f"复习节点从 {old['reviews']} 个调整为 {new['reviews']} 个")
+
+    if not changes:
+        return "计划内容已根据你的反馈优化，任务安排更加合理。"
+
+    # 根据反馈类型生成总结
+    if any(k in feedback for k in ["缩短", "压缩", "快点", "加快", "速成"]):
+        summary = "已压缩学习周期，知识点密度增加，建议每天多投入一些时间。"
+    elif any(k in feedback for k in ["延长", "放慢", "轻松", "慢点"]):
+        summary = "已延长学习周期，每个知识点的学习时间更充裕。"
+    elif any(k in feedback for k in ["难", "不懂", "薄弱", "加强"]):
+        summary = "已加强薄弱环节的练习和复习，建议多花时间在这些知识点上。"
+    elif any(k in feedback for k in ["简单", "掌握", "学会", "跳过"]):
+        summary = "已精简已掌握的内容，把时间留给更有挑战的知识点。"
+    else:
+        summary = "已根据你的反馈优化了学习安排。"
+
+    return "具体变化：\n" + "\n".join(f"- {c}" for c in changes) + f"\n\n{summary}"
+
+
 # ========== 工具4：用户记忆系统 ==========
 def update_user_profile(profile: dict, conv: dict, quiz_result: dict = None) -> dict:
     """更新用户画像：薄弱点、学习习惯、平均成绩"""
@@ -1085,6 +1153,9 @@ def process_chat_message(conv: dict, user_message: str) -> str:
                     completed.append(kp)
                 conv["completed_kps"] = completed
 
+            # 保存旧计划用于对比
+            old_plan = conv.get("plan", {})
+
             # 调用教练智能体调整计划
             state: LearningState = {
                 "goal": conv.get("goal", ""),
@@ -1094,7 +1165,7 @@ def process_chat_message(conv: dict, user_message: str) -> str:
                 "preference": conv.get("preference", []),
                 "skill_tree": conv.get("skill_tree", {}),
                 "resources": conv.get("resources", {}),
-                "plan": conv.get("plan", {}),
+                "plan": old_plan,
                 "completed_kps": completed,
                 "feedback": user_message,
                 "thought": "",
@@ -1104,12 +1175,18 @@ def process_chat_message(conv: dict, user_message: str) -> str:
             result = adjust_learning_plan(state, user_message)
             if result.get("error"):
                 return f"调整计划时出错：{result['error']}"
-            conv["plan"] = result.get("plan", conv["plan"])
+
+            new_plan = result.get("plan", old_plan)
+            conv["plan"] = new_plan
+
+            # 对比新旧计划，生成变化说明
+            change_desc = _compare_plans(old_plan, new_plan, user_message)
 
             prefix = ""
             if newly_completed:
                 prefix = f"已记录你掌握了：{'、'.join(newly_completed)}\n\n"
-            return f"{prefix}已根据你的反馈调整了学习计划！\n\n薄弱环节我已经加强了练习，已掌握的内容做了精简。下方可查看更新后的周计划。"
+
+            return f"{prefix}已根据你的反馈调整了学习计划！\n\n{change_desc}\n\n下方可查看更新后的周计划。"
 
         if action == "answer":
             # 普通问答，使用推理模型，结合学习上下文给出高质量回答
