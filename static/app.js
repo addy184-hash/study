@@ -197,12 +197,16 @@ async function sendMessage() {
         if (!res.ok) throw new Error('API请求失败');
         const data = await res.json();
 
-        // 用后端返回的更新后的conv替换
+        // 合并后端返回的状态，但保留前端的消息记录（后端不维护messages）
         const idx = conversations.findIndex(c => c.id === data.conv.id);
-        if (idx >= 0) conversations[idx] = data.conv;
-        saveConversations();
-
-        appendMessage('assistant', data.reply);
+        if (idx >= 0) {
+            const preservedMessages = conversations[idx].messages;
+            conversations[idx] = data.conv;
+            conversations[idx].messages = preservedMessages;
+            conversations[idx].messages.push({ role: 'assistant', content: data.reply });
+            saveConversations();
+            renderChat();
+        }
 
         // 更新标题
         if (data.conv.goal && !conv.goal) {
