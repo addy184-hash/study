@@ -16,31 +16,46 @@ st.set_page_config(
 )
 
 # ========== localStorage 工具 ==========
-def load_conversations():
-    try:
-        data = streamlit_js_eval(js_expressions="localStorage.getItem('study_chat_b64')")
-        if data and isinstance(data, str):
+def load_conversations_from_storage():
+    """从localStorage读取数据（streamlit-js-eval异步，第一次返回None）"""
+    data = streamlit_js_eval(js_expressions="localStorage.getItem('study_chat_b64')", key="load_storage")
+    if data and isinstance(data, str):
+        try:
             import base64
             decoded = base64.b64decode(data).decode('utf-8')
             return json.loads(decoded)
-    except:
-        pass
-    return []
+        except:
+            return []
+    return None  # None表示JS还没执行完，需要等下一次渲染
+
 
 def save_conversations(convs):
+    """保存到localStorage"""
     try:
         import base64
         data = json.dumps(convs, ensure_ascii=False)
         encoded = base64.b64encode(data.encode('utf-8')).decode('ascii')
-        streamlit_js_eval(js_expressions=f"localStorage.setItem('study_chat_b64', '{encoded}')")
+        streamlit_js_eval(js_expressions=f"localStorage.setItem('study_chat_b64', '{encoded}')", key="save_storage")
     except:
         pass
 
+
 # ========== 初始化状态 ==========
 if 'conversations' not in st.session_state:
-    st.session_state.conversations = load_conversations()
+    st.session_state.conversations = []
 if 'current_conv_id' not in st.session_state:
     st.session_state.current_conv_id = None
+if 'data_loaded' not in st.session_state:
+    st.session_state.data_loaded = False
+
+# 从localStorage加载数据（处理streamlit-js-eval异步时序）
+if not st.session_state.data_loaded:
+    loaded = load_conversations_from_storage()
+    if loaded is not None:
+        st.session_state.conversations = loaded
+        st.session_state.data_loaded = True
+        st.rerun()
+    # 如果loaded是None，说明JS还没执行完，等下一次渲染自动重试
 
 # ========== 主题配色（固定浅色） ==========
 bg = "#f1f5f9"
