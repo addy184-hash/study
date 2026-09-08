@@ -299,14 +299,21 @@ if current_conv.get("skill_tree"):
         plan = current_conv.get("plan", {})
         goal = current_conv.get("goal", "学习计划")
 
-        # ICS下载按钮
+        # ICS下载按钮（缓存到session_state，避免rerun时文件丢失）
         if plan.get("weekly_plan"):
-            ics_content = generate_ics(plan, goal)
+            # 用conv_id作为缓存key，plan变化时重新生成
+            ics_cache_key = f"ics_{current_conv['id']}_{len(str(plan))}"
+            if ics_cache_key not in st.session_state:
+                st.session_state[ics_cache_key] = generate_ics(plan, goal)
+            ics_content = st.session_state[ics_cache_key]
+
+            # 文件名用英文，避免中文编码问题
+            safe_goal = "".join(c if c.isalnum() else "_" for c in goal)[:30]
             st.download_button(
                 "下载日历文件 (导入手机/电脑日历)",
-                data=ics_content,
-                file_name=f"{goal}_学习计划.ics",
-                mime="text/calendar",
+                data=ics_content.encode("utf-8"),
+                file_name=f"{safe_goal}_study_plan.ics",
+                mime="text/calendar; charset=utf-8",
                 use_container_width=True
             )
             st.caption("下载后双击即可导入系统日历，支持iPhone/安卓/Windows/Mac，含提前30分钟提醒")
