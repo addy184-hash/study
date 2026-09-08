@@ -1225,8 +1225,20 @@ def process_chat_message(conv: dict, user_message: str) -> str:
                     completed.append(kp)
                 conv["completed_kps"] = completed
 
+            # 检测是否是整体周期变化（缩短/延长天数），需要重新生成完整计划
+            import re as _re
+            period_match = _re.search(r'(缩短|压缩|延长|改成|改为|变成|控制在|用)\s*(\d+)\s*[天周个月]', user_message)
+            if period_match and not newly_completed:
+                new_deadline = period_match.group(0)
+                conv["deadline"] = new_deadline
+                # 重新生成完整计划（技能树+资源+周计划）
+                reply = generate_plan_reply(conv)
+                prefix = f"已将学习周期调整为「{new_deadline}」，重新为你生成学习计划！\n\n"
+                return prefix + reply
+
             # 保存旧计划用于对比
             old_plan = conv.get("plan", {})
+            old_skill_tree = conv.get("skill_tree", {})
 
             # 调用教练智能体调整计划
             state: LearningState = {
@@ -1248,8 +1260,13 @@ def process_chat_message(conv: dict, user_message: str) -> str:
             if result.get("error"):
                 return f"调整计划时出错：{result['error']}"
 
+            # 更新计划和技能树（如果返回了新的skill_tree）
             new_plan = result.get("plan", old_plan)
             conv["plan"] = new_plan
+            if result.get("skill_tree"):
+                conv["skill_tree"] = result["skill_tree"]
+            if result.get("resources"):
+                conv["resources"] = result["resources"]
 
             # 对比新旧计划，生成变化说明
             change_desc = _compare_plans(old_plan, new_plan, user_message)
@@ -1258,7 +1275,7 @@ def process_chat_message(conv: dict, user_message: str) -> str:
             if newly_completed:
                 prefix = f"已记录你掌握了：{'、'.join(newly_completed)}\n\n"
 
-            return f"{prefix}已根据你的反馈调整了学习计划！\n\n{change_desc}\n\n下方可查看更新后的周计划。"
+            return f"{prefix}已根据你的反馈调整了学习计划！\n\n{change_desc}\n\n下方可查看更新后的技能树和周计划。"
 
         if action == "answer":
             # 普通问答，使用推理模型，结合学习上下文给出高质量回答
