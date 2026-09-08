@@ -75,8 +75,11 @@ function renderConvList() {
         const title = conv.goal || '未命名对话';
         const active = conv.id === currentConvId ? 'active' : '';
         return `<div class="conv-item ${active}" onclick="selectConversation('${conv.id}')">
-            <div class="conv-title">${escapeHtml(title)}</div>
-            <div class="conv-time">${conv.created_at || ''}</div>
+            <div class="conv-item-content">
+                <div class="conv-title">${escapeHtml(title)}</div>
+                <div class="conv-time">${conv.created_at || ''}</div>
+            </div>
+            <button class="conv-delete-btn" onclick="event.stopPropagation(); deleteConvFromSidebar('${conv.id}')" title="删除对话">×</button>
         </div>`;
     }).join('');
 }
@@ -171,61 +174,84 @@ function sendExample(text) {
 
 async function sendMessage() {
     const input = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
     const message = input.value.trim();
     if (!message) return;
 
-    const conv = getCurrentConv();
+    // 确保有当前对话
+    let conv = getCurrentConv();
     if (!conv) {
         newConversation();
+        conv = getCurrentConv();
     }
+    if (!conv) return;
 
     input.value = '';
     input.style.height = 'auto';
-    document.getElementById('sendBtn').disabled = true;
-    document.getElementById('loadingOverlay').style.display = 'flex';
+    if (sendBtn) sendBtn.disabled = true;
+    if (loadingOverlay) loadingOverlay.style.display = 'flex';
 
     try {
-        const currentConv = getCurrentConv();
-        appendMessage('user', message);
+        // 先添加用户消息
+        conv.messages.push({ role: 'user', content: message });
+        updateConv(conv);
+        renderChat();
 
+        // 发送API请求
         const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ conv: currentConv, message })
+            body: JSON.stringify({ conv: conv, message: message })
         });
 
-        if (!res.ok) throw new Error('API请求失败');
-        const data = await res.json();
+        if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`API请求失败 (${res.status}) ${errText}`);
+        }
 
-        // 合并后端返回的状态，但保留前端的消息记录（后端不维护messages）
+        const data = await res.json();
+        if (!data || !data.conv) {
+            throw new Error('API返回数据格式错误');
+        }
+
+        // 合并后端返回的状态，保留前端消息记录
         const idx = conversations.findIndex(c => c.id === data.conv.id);
         if (idx >= 0) {
             const preservedMessages = conversations[idx].messages;
             conversations[idx] = data.conv;
             conversations[idx].messages = preservedMessages;
-            conversations[idx].messages.push({ role: 'assistant', content: data.reply });
+            conversations[idx].messages.push({ role: 'assistant', content: data.reply || '（无回复）' });
             saveConversations();
             renderChat();
         }
 
         // 更新标题
-        if (data.conv.goal && !conv.goal) {
-            document.getElementById('chatTitle').textContent = data.conv.goal;
+        const chatTitle = document.getElementById('chatTitle');
+        if (chatTitle && data.conv.goal) {
+            chatTitle.textContent = data.conv.goal;
         }
 
         // 显示详情面板
         if (data.conv.skill_tree && Object.keys(data.conv.skill_tree).length > 0) {
-            document.getElementById('detailPanel').style.display = 'flex';
+            const detailPanel = document.getElementById('detailPanel');
+            if (detailPanel) detailPanel.style.display = 'flex';
             selectedPlanIndex = 0;
             renderAllDetails();
         }
 
         renderConvList();
     } catch (e) {
-        appendMessage('assistant', '抱歉，处理你的消息时出错了：' + e.message + '\n\n请稍后重试，或检查网络连接。');
+        console.error('sendMessage error:', e);
+        const errConv = getCurrentConv();
+        if (errConv) {
+            errConv.messages.push({ role: 'assistant', content: '抱歉，处理你的消息时出错了：' + e.message + '\n\n请稍后重试，或检查网络连接和API Key配置。' });
+            updateConv(errConv);
+            renderChat();
+        }
     } finally {
-        document.getElementById('sendBtn').disabled = false;
-        document.getElementById('loadingOverlay').style.display = 'none';
+        if (sendBtn) sendBtn.disabled = false;
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
     }
 }
 
@@ -565,6 +591,21 @@ function deleteConversation() {
     document.getElementById('detailPanel').style.display = 'none';
     document.getElementById('chatTitle').textContent = '智能学习伴侣';
     document.getElementById('chatSubtitle').textContent = '输入你的学习目标，AI为你规划';
+}
+
+function deleteConvFromSidebar(id) {
+    if (!confirm('确定要删除这个对话吗？此操作不可恢复。')) return;
+    conversations = conversations.filter(c => c.id !== id);
+    if (currentConvId === id) {
+        currentConvId = null;
+        document.getElementById('messages').innerHTML = '';
+        document.getElementById('welcomeScreen').style.display = 'block';
+        document.getElementById('detailPanel').style.display = 'none';
+        document.getElementById('chatTitle').textContent = '智能学习伴侣';
+        document.getElementById('chatSubtitle').textContent = '输入你的学习目标，AI为你规划';
+    }
+    saveConversations();
+    renderConvList();
 }
 
 // ========== 工具函数 ==========
