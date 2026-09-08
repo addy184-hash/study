@@ -144,6 +144,7 @@ function renderChat() {
     const messagesEl = document.getElementById('messages');
     const welcome = document.getElementById('welcomeScreen');
     const quickActions = document.getElementById('quickActions');
+    const quickSetup = document.getElementById('quickSetup');
 
     if (!conv || !messagesEl || !welcome) return;
 
@@ -154,9 +155,22 @@ function renderChat() {
         welcome.style.display = 'flex';
         messagesEl.innerHTML = '';
         if (quickActions) quickActions.style.display = 'none';
+        if (quickSetup) quickSetup.style.display = 'none';
         return;
     }
     welcome.style.display = 'none';
+
+    // 检测AI是否在追问学情，显示快速选择面板
+    const lastMsg = conv.messages[conv.messages.length - 1];
+    const isAsking = lastMsg && lastMsg.role === 'assistant' && 
+        (lastMsg.content.includes('还需要了解') || lastMsg.content.includes('用默认设置') || lastMsg.content.includes('请告诉我'));
+    if (quickSetup) {
+        if (isAsking && conv.stage === 'collecting') {
+            quickSetup.style.display = 'block';
+        } else {
+            quickSetup.style.display = 'none';
+        }
+    }
 
     // 有学习计划时显示快捷操作栏
     if (quickActions) {
@@ -173,6 +187,51 @@ function renderChat() {
         </div>`;
     }).join('');
     messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// 学情卡片选择
+let setupSelections = {};
+function selectSetup(field, value) {
+    setupSelections[field] = value;
+    // 高亮选中
+    document.querySelectorAll('.setup-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    const cards = document.querySelectorAll('.setup-card');
+    cards.forEach(card => {
+        const onclick = card.getAttribute('onclick') || '';
+        if (onclick.includes(`'${field}','${value}'`)) {
+            card.classList.add('selected');
+        }
+    });
+    // 如果基础和时长都选了，自动提交
+    if (setupSelections.base && setupSelections.hours) {
+        submitSetup();
+    }
+}
+
+function submitSetup() {
+    const base = setupSelections.base || '零基础';
+    const hours = setupSelections.hours || '2';
+    const conv = getCurrentConv();
+    if (conv) {
+        conv.base = base;
+        conv.hours = parseFloat(hours);
+    }
+    setupSelections = {};
+    document.getElementById('userInput').value = `我的基础是${base}，每天学${hours}小时`;
+    sendMessage();
+}
+
+function skipSetup() {
+    const conv = getCurrentConv();
+    if (conv) {
+        conv.base = '零基础';
+        conv.hours = 2;
+    }
+    setupSelections = {};
+    document.getElementById('userInput').value = '用默认设置直接开始';
+    sendMessage();
 }
 
 function appendMessage(role, content) {

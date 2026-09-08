@@ -39,13 +39,38 @@
                     <div class="chat-subtitle" id="chatSubtitle">输入你的学习目标，AI为你规划</div>
                 </div>
                 <div class="messages" id="messages"></div>
-                <!-- 正在输入提示 -->
-                <div class="typing-indicator" id="typingIndicator" style="display:none;">
-                    <div class="typing-bubble">
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        <span class="typing-dot"></span>
-                        <span class="typing-text">正在生成...</span>
+                <!-- 豆包风格正在输入提示 -->
+                <div class="typing-row" id="typingIndicator" style="display:none;">
+                    <div class="typing-avatar">学</div>
+                    <div class="typing-bubble-doubao">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                </div>
+                <!-- 学情快速选择面板 -->
+                <div class="quick-setup" id="quickSetup" style="display:none;">
+                    <div class="quick-setup-title">完善信息，生成更精准的计划</div>
+                    <div class="setup-group">
+                        <div class="setup-label">你的基础</div>
+                        <div class="setup-cards">
+                            <div class="setup-card" onclick="selectSetup('base','零基础')">零基础</div>
+                            <div class="setup-card" onclick="selectSetup('base','入门')">入门了解</div>
+                            <div class="setup-card" onclick="selectSetup('base','有一定基础')">有一定基础</div>
+                            <div class="setup-card" onclick="selectSetup('base','熟练')">熟练掌握</div>
+                        </div>
+                    </div>
+                    <div class="setup-group">
+                        <div class="setup-label">每天学习时长</div>
+                        <div class="setup-cards">
+                            <div class="setup-card" onclick="selectSetup('hours','0.5')">30分钟</div>
+                            <div class="setup-card" onclick="selectSetup('hours','1')">1小时</div>
+                            <div class="setup-card" onclick="selectSetup('hours','2')">2小时</div>
+                            <div class="setup-card" onclick="selectSetup('hours','3')">3小时以上</div>
+                        </div>
+                    </div>
+                    <div class="setup-actions">
+                        <button class="setup-skip" onclick="skipSetup()">用默认设置直接开始</button>
                     </div>
                 </div>
                 <div class="welcome-screen" id="welcomeScreen">
