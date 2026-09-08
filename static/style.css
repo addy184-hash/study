@@ -53,6 +53,35 @@ body {
     border-bottom: 1px solid var(--border);
 }
 
+/* 连续打卡徽章 */
+.streak-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 6px 12px;
+    background: linear-gradient(135deg, #fff7ed, #ffedd5);
+    border: 1px solid #fed7aa;
+    border-radius: 20px;
+    width: fit-content;
+}
+
+.streak-icon {
+    font-size: 16px;
+    animation: flamePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes flamePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+.streak-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: #ea580c;
+}
+
 .logo {
     display: flex;
     align-items: center;
@@ -835,6 +864,86 @@ body {
 .kp-name.completed {
     text-decoration: line-through;
     color: var(--sub-text);
+}
+
+/* 技能树点亮动画 */
+.kp-item.kp-anim {
+    animation: kpLightUp 0.8s ease-out;
+}
+
+@keyframes kpLightUp {
+    0% { background: transparent; }
+    30% { background: rgba(251, 191, 36, 0.2); box-shadow: 0 0 12px rgba(251, 191, 36, 0.4); border-radius: 6px; }
+    100% { background: transparent; box-shadow: none; }
+}
+
+.kp-item.kp-anim .kp-name {
+    animation: kpTextPop 0.5s ease-out;
+}
+
+@keyframes kpTextPop {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); color: #f59e0b; }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .kp-item.kp-anim, .kp-item.kp-anim .kp-name {
+        animation: none;
+    }
+}
+
+/* 学习计时器 */
+.timer-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+}
+
+.timer-display {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--primary);
+    font-family: 'Courier New', monospace;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+}
+
+.timer-btn {
+    padding: 10px 32px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.timer-btn.start {
+    background: var(--primary);
+    color: white;
+}
+
+.timer-btn.start:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+}
+
+.timer-btn.stop {
+    background: #ef4444;
+    color: white;
+}
+
+.timer-btn.stop:hover {
+    background: #dc2626;
+}
+
+.timer-hint {
+    font-size: 11px;
+    color: var(--sub-text);
+    margin-top: 8px;
 }
 
 .kp-meta {

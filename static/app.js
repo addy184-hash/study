@@ -148,6 +148,19 @@ function renderChat() {
 
     if (!conv || !messagesEl || !welcome) return;
 
+    // 更新连续打卡徽章
+    const streakBadge = document.getElementById('streakBadge');
+    const streakCount = document.getElementById('streakCount');
+    const streak = (conv.study_log && conv.study_log.streak_days) || 0;
+    if (streakBadge && streakCount) {
+        if (streak > 0) {
+            streakBadge.style.display = 'flex';
+            streakCount.textContent = streak;
+        } else {
+            streakBadge.style.display = 'none';
+        }
+    }
+
     if (chatTitle) chatTitle.textContent = conv.goal || '新对话';
     if (chatSubtitle) chatSubtitle.textContent = conv.created_at ? `创建于 ${conv.created_at}` : '';
 
@@ -548,6 +561,7 @@ function toggleKp(name) {
     if (!conv) return;
     if (!conv.completed_kps) conv.completed_kps = [];
     const idx = conv.completed_kps.indexOf(name);
+    const isCompleting = idx < 0; // 是否是刚勾选（不是取消）
     if (idx >= 0) {
         conv.completed_kps.splice(idx, 1);
     } else {
@@ -556,6 +570,25 @@ function toggleKp(name) {
     updateConv(conv);
     renderSkillTree();
     renderStats();
+
+    // 勾选时触发点亮动画
+    if (isCompleting) {
+        setTimeout(() => {
+            const checkboxes = document.querySelectorAll('.kp-checkbox');
+            checkboxes.forEach(cb => {
+                if (cb.checked && cb.nextElementSibling) {
+                    const kpName = cb.nextElementSibling.querySelector('.kp-name');
+                    if (kpName && kpName.textContent === name) {
+                        const item = cb.closest('.kp-item');
+                        if (item) {
+                            item.classList.add('kp-anim');
+                            setTimeout(() => item.classList.remove('kp-anim'), 1000);
+                        }
+                    }
+                }
+            });
+        }, 50);
+    }
 }
 
 // ========== 资源推荐 ==========
@@ -743,6 +776,21 @@ function renderStats() {
     const completed = conv.completed_kps || [];
     const studyLog = conv.study_log || { total_hours: 0, daily: {}, streak_days: 0, week_hours: 0 };
 
+    // 学习计时器
+    const isTiming = window._timerRunning;
+    const timerDisplay = isTiming ? formatTimer(window._timerSeconds) : '00:00:00';
+    const timerBtnText = isTiming ? '结束学习' : '开始学习';
+    const timerBtnClass = isTiming ? 'timer-btn stop' : 'timer-btn start';
+
+    let html = `<div class="stats-section">
+        <div class="stats-section-title">学习计时器</div>
+        <div class="timer-card">
+            <div class="timer-display" id="timerDisplay">${timerDisplay}</div>
+            <button class="${timerBtnClass}" id="timerBtn" onclick="toggleTimer()">${timerBtnText}</button>
+            <div class="timer-hint">点击开始，结束后自动记录学习时长</div>
+        </div>
+    </div>`;
+
     // 学习时长看板
     const totalHours = studyLog.total_hours || 0;
     const weekHours = studyLog.week_hours || 0;
@@ -775,7 +823,7 @@ function renderStats() {
         </div>`;
     });
 
-    let html = `<div class="stats-section">
+    html += `<div class="stats-section">
         <div class="stats-section-title">学习时长统计</div>
         <div class="time-grid">
             <div class="time-card">
@@ -834,6 +882,61 @@ function renderStats() {
     html += `<button class="delete-btn" onclick="deleteConversation()">删除此对话</button>`;
 
     el.innerHTML = html;
+}
+
+// ========== 学习计时器 ==========
+window._timerRunning = false;
+window._timerSeconds = 0;
+window._timerInterval = null;
+
+function formatTimer(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function toggleTimer() {
+    if (window._timerRunning) {
+        stopTimer();
+    } else {
+        startTimer();
+    }
+}
+
+function startTimer() {
+    window._timerRunning = true;
+    window._timerSeconds = 0;
+    const btn = document.getElementById('timerBtn');
+    const display = document.getElementById('timerDisplay');
+    if (btn) { btn.textContent = '结束学习'; btn.className = 'timer-btn stop'; }
+    window._timerInterval = setInterval(() => {
+        window._timerSeconds++;
+        if (display) display.textContent = formatTimer(window._timerSeconds);
+    }, 1000);
+}
+
+function stopTimer() {
+    window._timerRunning = false;
+    clearInterval(window._timerInterval);
+    const hours = window._timerSeconds / 3600;
+    const btn = document.getElementById('timerBtn');
+    if (btn) { btn.textContent = '开始学习'; btn.className = 'timer-btn start'; }
+
+    if (window._timerSeconds < 60) {
+        alert('学习时间太短啦，至少学1分钟再记录吧~');
+        window._timerSeconds = 0;
+        return;
+    }
+
+    // 自动记录学习时长
+    const conv = getCurrentConv();
+    if (conv) {
+        const hoursRounded = Math.round(hours * 10) / 10;
+        document.getElementById('userInput').value = `今天学了${hoursRounded}小时`;
+        sendMessage();
+    }
+    window._timerSeconds = 0;
 }
 
 function deleteConversation() {
