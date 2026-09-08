@@ -1023,19 +1023,26 @@ def process_chat_message(conv: dict, user_message: str) -> str:
             if info.get("preference"):
                 conv["preference"] = info["preference"]
 
+            # 智能补全：只要有学习目标，就用默认值填充缺失信息，直接生成计划，不追问
+            if conv.get("goal"):
+                if not conv.get("base"):
+                    conv["base"] = "零基础"
+                if conv.get("hours", 0) == 0:
+                    conv["hours"] = 2
+                if not conv.get("deadline"):
+                    conv["deadline"] = "1个月"
+                # 如果用户只说了目标，提示用了默认值
+                if len(updated) <= 1:
+                    return generate_plan_reply(conv) + "\n\n（已自动使用默认设置：零基础 · 每天2小时 · 1个月，如需调整随时告诉我）"
+                return generate_plan_reply(conv)
+
+            # 没有目标才追问
             missing = []
             if not conv.get("goal"):
                 missing.append("学习目标")
-            if not conv.get("base"):
-                missing.append("现有基础")
-            if conv.get("hours", 0) == 0:
-                missing.append("每日学习时长")
-
             if missing:
-                prefix = f"已记录：{'、'.join(updated)}\n\n" if updated else ""
-                return f"{prefix}还需要了解：{'、'.join(missing)}\n\n请告诉我这些信息，或者说「用默认设置」直接开始。"
-            else:
-                return generate_plan_reply(conv)
+                return f"请告诉我你想学什么，比如「我想在1个月内学会Python数据分析」"
+            return generate_plan_reply(conv)
 
         # adjust在收集阶段当作补充信息处理
         if action == "adjust":
@@ -1049,18 +1056,17 @@ def process_chat_message(conv: dict, user_message: str) -> str:
             if info.get("deadline"):
                 conv["deadline"] = info["deadline"]
 
-            missing = []
-            if not conv.get("goal"):
-                missing.append("学习目标")
-            if not conv.get("base"):
-                missing.append("现有基础")
-            if conv.get("hours", 0) == 0:
-                missing.append("每日学习时长")
-
-            if missing:
-                return f"还缺少：{'、'.join(missing)}\n\n请补充这些信息，或者说「用默认设置」直接开始。"
-            else:
+            # 智能补全：有目标就直接生成计划
+            if conv.get("goal"):
+                if not conv.get("base"):
+                    conv["base"] = "零基础"
+                if conv.get("hours", 0) == 0:
+                    conv["hours"] = 2
+                if not conv.get("deadline"):
+                    conv["deadline"] = "1个月"
                 return generate_plan_reply(conv)
+
+            return "请告诉我你想学什么，比如「我想在1个月内学会Python数据分析」"
 
     # ===== 学习中阶段 =====
     elif stage == "learning":

@@ -123,6 +123,7 @@ function newConversation() {
     saveConversations();
     renderConvList();
     renderChat();
+    resetMobileToChat();
     const detailPanel = document.getElementById('detailPanel');
     if (detailPanel) detailPanel.style.display = 'none';
     const quickActions = document.getElementById('quickActions');
@@ -133,10 +134,11 @@ function selectConversation(id) {
     currentConvId = id;
     renderConvList();
     renderChat();
+    resetMobileToChat();
     const conv = getCurrentConv();
     const detailPanel = document.getElementById('detailPanel');
     if (conv && conv.skill_tree && Object.keys(conv.skill_tree).length > 0) {
-        if (detailPanel) detailPanel.style.display = 'flex';
+        if (detailPanel && window.innerWidth > 1024) detailPanel.style.display = 'flex';
         renderAllDetails();
     } else {
         if (detailPanel) detailPanel.style.display = 'none';
@@ -479,7 +481,7 @@ function switchTab(tab) {
     document.getElementById(`tab-${tab}`).classList.add('active');
 }
 
-// ========== 手机端底部Tab切换 ==========
+// ========== 手机端Tab切换 ==========
 function switchMobileTab(tab) {
     const chatArea = document.getElementById('chatArea');
     const detailPanel = document.getElementById('detailPanel');
@@ -493,7 +495,6 @@ function switchMobileTab(tab) {
         detailPanel.classList.remove('mobile-show');
         detailPanel.style.display = 'none';
     } else {
-        // 切换到学习路线前，确保详情已渲染
         const conv = getCurrentConv();
         if (conv && conv.skill_tree && Object.keys(conv.skill_tree).length > 0) {
             renderAllDetails();
@@ -501,11 +502,27 @@ function switchMobileTab(tab) {
             detailPanel.classList.add('mobile-show');
             detailPanel.style.display = 'flex';
         } else {
-            // 还没有生成计划，提示用户
             alert('请先在聊天中输入学习目标，生成学习计划后再查看路线');
             tabs.forEach(t => t.classList.remove('active'));
             document.querySelector('.mobile-tab[data-mtab="chat"]').classList.add('active');
         }
+    }
+}
+
+// 重置手机端到聊天Tab
+function resetMobileToChat() {
+    const isMobile = window.innerWidth <= 1024;
+    if (isMobile) {
+        const chatArea = document.getElementById('chatArea');
+        const detailPanel = document.getElementById('detailPanel');
+        if (chatArea) chatArea.style.display = 'flex';
+        if (detailPanel) {
+            detailPanel.classList.remove('mobile-show');
+            detailPanel.style.display = 'none';
+        }
+        document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
+        const chatTab = document.querySelector('.mobile-tab[data-mtab="chat"]');
+        if (chatTab) chatTab.classList.add('active');
     }
 }
 
@@ -998,6 +1015,7 @@ function deleteConversation() {
     currentConvId = null;
     saveConversations();
     renderConvList();
+    resetMobileToChat();
     document.getElementById('messages').innerHTML = '';
     document.getElementById('welcomeScreen').style.display = 'block';
     document.getElementById('detailPanel').style.display = 'none';
@@ -1010,6 +1028,7 @@ function deleteConvFromSidebar(id) {
     conversations = conversations.filter(c => c.id !== id);
     if (currentConvId === id) {
         currentConvId = null;
+        resetMobileToChat();
         document.getElementById('messages').innerHTML = '';
         document.getElementById('welcomeScreen').style.display = 'block';
         document.getElementById('detailPanel').style.display = 'none';

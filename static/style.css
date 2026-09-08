@@ -1487,6 +1487,14 @@ body {
     .input-area {
         bottom: 60px !important;
     }
+    /* 手机端隐藏电脑端快捷键提示 */
+    .input-hint {
+        display: none !important;
+    }
+    /* 手机端输入框优化 */
+    .input-wrapper textarea {
+        font-size: 15px !important;
+    }
     /* 手机端详情面板全屏 */
     .detail-panel.mobile-show {
         display: flex !important;
