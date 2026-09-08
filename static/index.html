@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>智能学习伴侣 | AI学习路径规划</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -18,7 +18,6 @@
                         <div class="logo-sub">AI个性化学习规划</div>
                     </div>
                 </div>
-                <!-- 连续打卡徽章 -->
                 <div class="streak-badge" id="streakBadge" style="display:none;">
                     <span class="streak-icon">🔥</span>
                     <span class="streak-text">连续 <span id="streakCount">0</span> 天</span>
@@ -40,11 +39,11 @@
             <!-- 聊天区域 -->
             <div class="chat-area" id="chatArea">
                 <div class="chat-header" id="chatHeader">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()" id="mobileMenuBtn">☰</button>
                     <div class="chat-title" id="chatTitle">智能学习伴侣</div>
                     <div class="chat-subtitle" id="chatSubtitle">输入你的学习目标，AI为你规划</div>
                 </div>
                 <div class="messages" id="messages"></div>
-                <!-- 豆包风格正在输入提示 -->
                 <div class="typing-row" id="typingIndicator" style="display:none;">
                     <div class="typing-avatar">学</div>
                     <div class="typing-bubble-doubao">
@@ -53,7 +52,6 @@
                         <span class="dot"></span>
                     </div>
                 </div>
-                <!-- 学情快速选择面板 -->
                 <div class="quick-setup" id="quickSetup" style="display:none;">
                     <div class="quick-setup-title">完善信息，生成更精准的计划</div>
                     <div class="setup-group">
@@ -115,7 +113,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- 快捷操作栏 -->
                 <div class="quick-actions" id="quickActions" style="display:none;">
                     <button class="quick-btn" onclick="quickAction('quiz')">出题测试</button>
                     <button class="quick-btn" onclick="quickAction('adjust')">调整计划</button>
@@ -140,6 +137,10 @@
 
             <!-- 详情面板 -->
             <div class="detail-panel" id="detailPanel" style="display:none;">
+                <div class="detail-mobile-header" id="detailMobileHeader" style="display:none;">
+                    <button class="mobile-back-btn" onclick="switchMobileTab('chat')">← 返回聊天</button>
+                    <span class="mobile-detail-title">学习路线</span>
+                </div>
                 <div class="detail-tabs">
                     <button class="tab-btn active" data-tab="skilltree" onclick="switchTab('skilltree')">学习路线</button>
                     <button class="tab-btn" data-tab="resources" onclick="switchTab('resources')">学习资源</button>
@@ -156,6 +157,18 @@
                 </div>
             </div>
         </main>
+
+        <!-- 手机端底部Tab栏 -->
+        <nav class="mobile-tabbar" id="mobileTabbar" style="display:none;">
+            <button class="mobile-tab active" data-mtab="chat" onclick="switchMobileTab('chat')">
+                <span class="mtab-icon">💬</span>
+                <span class="mtab-label">聊天</span>
+            </button>
+            <button class="mobile-tab" data-mtab="detail" onclick="switchMobileTab('detail')">
+                <span class="mtab-icon">📋</span>
+                <span class="mtab-label">学习路线</span>
+            </button>
+        </nav>
     </div>
 
     <script src="/static/app.js"></script>

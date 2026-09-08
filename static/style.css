@@ -1437,6 +1437,9 @@ body {
     .detail-panel {
         display: none !important;
     }
+    .mobile-tabbar {
+        display: flex !important;
+    }
 }
 
 @media (max-width: 768px) {
@@ -1445,13 +1448,162 @@ body {
         left: -280px;
         top: 0;
         bottom: 0;
-        z-index: 100;
+        z-index: 200;
         transition: left 0.3s;
+        width: 260px;
     }
     .sidebar.open {
         left: 0;
     }
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 150;
+    }
+    .sidebar-overlay.show {
+        display: block;
+    }
     .message-bubble {
         max-width: 90%;
     }
+    .mobile-menu-btn {
+        display: block !important;
+    }
+    .chat-header {
+        padding-left: 12px !important;
+    }
+    .chat-title {
+        font-size: 16px !important;
+    }
+    .chat-subtitle {
+        font-size: 11px !important;
+    }
+    /* 手机端聊天区域底部留出Tab栏空间 */
+    .chat-area {
+        padding-bottom: 60px !important;
+    }
+    .input-area {
+        bottom: 60px !important;
+    }
+    /* 手机端详情面板全屏 */
+    .detail-panel.mobile-show {
+        display: flex !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 60px !important;
+        width: 100% !important;
+        z-index: 50 !important;
+        border-left: none !important;
+    }
+    .detail-mobile-header {
+        display: flex !important;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border);
+        background: var(--card-bg);
+        gap: 12px;
+    }
+    .mobile-back-btn {
+        background: none;
+        border: none;
+        font-size: 15px;
+        color: var(--primary);
+        cursor: pointer;
+        padding: 4px 8px;
+        font-weight: 600;
+    }
+    .mobile-detail-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text);
+    }
+    .detail-tabs {
+        padding: 0 4px;
+    }
+    .tab-btn {
+        padding: 10px 10px;
+        font-size: 12px;
+    }
+    .detail-content {
+        padding: 12px;
+    }
+    /* 模板网格手机端2列 */
+    .template-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+    }
+    .welcome-icon {
+        font-size: 40px !important;
+    }
+    .welcome-screen h2 {
+        font-size: 20px !important;
+    }
+    .welcome-screen p {
+        font-size: 13px !important;
+    }
+    /* 快捷操作栏横向滚动 */
+    .quick-actions {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        padding: 8px 12px !important;
+    }
+    .quick-btn {
+        flex-shrink: 0 !important;
+        font-size: 12px !important;
+        padding: 6px 12px !important;
+    }
+}
+
+/* ========== 手机端底部Tab栏 ========== */
+.mobile-tabbar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    z-index: 300;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
+.mobile-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8;
+    transition: color 0.15s;
+    padding: 6px 0;
+}
+.mobile-tab.active {
+    color: #2563eb;
+}
+.mtab-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+.mtab-label {
+    font-size: 11px;
+    font-weight: 500;
+}
+/* 手机端菜单按钮 */
+.mobile-menu-btn {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 22px;
+    cursor: pointer;
+    color: var(--text);
+    padding: 4px 8px;
+    margin-right: 8px;
 }

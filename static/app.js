@@ -10,11 +10,18 @@ document.addEventListener('DOMContentLoaded', () => {
     loadConversations();
     renderConvList();
     renderChat();
-    // 如果当前对话有技能树，显示详情面板
+    // 检测是否为手机端
+    const isMobile = window.innerWidth <= 1024;
+    if (isMobile) {
+        document.getElementById('mobileTabbar').style.display = 'flex';
+    }
+    // 如果当前对话有技能树，显示详情面板（桌面端）
     const conv = getCurrentConv();
     if (conv && conv.skill_tree && Object.keys(conv.skill_tree).length > 0) {
-        const detailPanel = document.getElementById('detailPanel');
-        if (detailPanel) detailPanel.style.display = 'flex';
+        if (!isMobile) {
+            const detailPanel = document.getElementById('detailPanel');
+            if (detailPanel) detailPanel.style.display = 'flex';
+        }
         renderAllDetails();
     }
     checkApiStatus();
@@ -470,6 +477,52 @@ function switchTab(tab) {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
     document.querySelector(`.tab-btn[data-tab="${tab}"]`).classList.add('active');
     document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ========== 手机端底部Tab切换 ==========
+function switchMobileTab(tab) {
+    const chatArea = document.getElementById('chatArea');
+    const detailPanel = document.getElementById('detailPanel');
+    const tabs = document.querySelectorAll('.mobile-tab');
+
+    tabs.forEach(t => t.classList.remove('active'));
+    document.querySelector(`.mobile-tab[data-mtab="${tab}"]`).classList.add('active');
+
+    if (tab === 'chat') {
+        chatArea.style.display = 'flex';
+        detailPanel.classList.remove('mobile-show');
+        detailPanel.style.display = 'none';
+    } else {
+        // 切换到学习路线前，确保详情已渲染
+        const conv = getCurrentConv();
+        if (conv && conv.skill_tree && Object.keys(conv.skill_tree).length > 0) {
+            renderAllDetails();
+            chatArea.style.display = 'none';
+            detailPanel.classList.add('mobile-show');
+            detailPanel.style.display = 'flex';
+        } else {
+            // 还没有生成计划，提示用户
+            alert('请先在聊天中输入学习目标，生成学习计划后再查看路线');
+            tabs.forEach(t => t.classList.remove('active'));
+            document.querySelector('.mobile-tab[data-mtab="chat"]').classList.add('active');
+        }
+    }
+}
+
+// ========== 手机端侧边栏开关 ==========
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    sidebar.classList.toggle('open');
+    // 创建或切换遮罩层
+    let overlay = document.getElementById('sidebarOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'sidebarOverlay';
+        overlay.className = 'sidebar-overlay';
+        overlay.onclick = toggleSidebar;
+        document.querySelector('.app').appendChild(overlay);
+    }
+    overlay.classList.toggle('show');
 }
 
 // ========== 渲染所有详情 ==========
