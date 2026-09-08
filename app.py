@@ -145,6 +145,12 @@ with st.sidebar:
     api_key = st.text_input("DeepSeek API Key", type="password", key="api_key_input")
     if api_key:
         config.DEEPSEEK_API_KEY = api_key
+        st.success("API Key已配置")
+    elif config.DEEPSEEK_API_KEY:
+        st.success("API Key已从环境变量加载")
+    else:
+        st.warning("未配置API Key，无法使用AI功能")
+        st.caption("在上方填写Key，或在Render环境变量中设置DEEPSEEK_API_KEY")
 
 # ========== 获取当前对话 ==========
 current_conv = None

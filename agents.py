@@ -21,6 +21,8 @@ def _client():
 
 def call_llm(system_prompt: str, user_prompt: str, temperature: float = 0.3) -> dict:
     try:
+        if not config.DEEPSEEK_API_KEY:
+            return {"error": "未配置DeepSeek API Key，请在左侧边栏填写，或在Render环境变量中设置DEEPSEEK_API_KEY"}
         resp = _client().chat.completions.create(
             model=config.DEEPSEEK_MODEL,
             messages=[
@@ -32,14 +34,23 @@ def call_llm(system_prompt: str, user_prompt: str, temperature: float = 0.3) -> 
         )
         return json.loads(resp.choices[0].message.content)
     except Exception as e:
-        return {"error": str(e)}
+        error_msg = str(e)
+        if "401" in error_msg or "authentication" in error_msg.lower():
+            return {"error": "API Key认证失败，请检查DeepSeek API Key是否正确"}
+        elif "404" in error_msg:
+            return {"error": "API地址或模型名称错误，请检查配置"}
+        elif "rate" in error_msg.lower() or "limit" in error_msg.lower():
+            return {"error": "API调用频率超限或余额不足，请稍后再试或检查账户余额"}
+        return {"error": error_msg}
 
 
-def call_llm_text(system_prompt: str, user_prompt: str, temperature: float = 0.5) -> str:
-    """非JSON格式的LLM调用，用于普通问答"""
+def call_llm_text(system_prompt: str, user_prompt: str, temperature: float = 0.7) -> str:
+    """非JSON格式的LLM调用，使用推理模型(deepseek-reasoner)，回答质量更高"""
     try:
+        if not config.DEEPSEEK_API_KEY:
+            return "⚠️ 未配置DeepSeek API Key，请在左侧边栏填写，或在Render环境变量中设置DEEPSEEK_API_KEY。"
         resp = _client().chat.completions.create(
-            model=config.DEEPSEEK_MODEL,
+            model=config.DEEPSEEK_REASONER_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -48,7 +59,14 @@ def call_llm_text(system_prompt: str, user_prompt: str, temperature: float = 0.5
         )
         return resp.choices[0].message.content
     except Exception as e:
-        return f"回答时出错：{str(e)}"
+        error_msg = str(e)
+        if "401" in error_msg or "authentication" in error_msg.lower():
+            return "⚠️ API Key认证失败，请检查DeepSeek API Key是否正确。"
+        elif "404" in error_msg:
+            return "⚠️ API地址或模型名称错误，请检查配置。"
+        elif "rate" in error_msg.lower() or "limit" in error_msg.lower():
+            return "⚠️ API调用频率超限或余额不足，请稍后再试或检查账户余额。"
+        return f"回答时出错：{error_msg}"
 
 
 # ========== 工具1：多源搜索工具（Researcher Agent使用） ==========
@@ -1026,10 +1044,29 @@ def process_chat_message(conv: dict, user_message: str) -> str:
             return f"{prefix}已根据你的反馈调整了学习计划！\n\n薄弱环节我已经加强了练习，已掌握的内容做了精简。下方可查看更新后的周计划。"
 
         if action == "answer":
-            # 普通问答，结合学习上下文
-            system2 = f"""你是学习助手，用户正在学习「{conv.get('goal','')}」。
-用户当前基础：{conv.get('base','')}，已掌握：{', '.join(conv.get('completed_kps', [])) or '暂无'}。
-请用简洁友好的语气回答，结合用户的学习进度给出针对性建议。"""
+            # 普通问答，使用推理模型，结合学习上下文给出高质量回答
+            goal = conv.get("goal", "")
+            base = conv.get("base", "")
+            completed = conv.get("completed_kps", [])
+            weak = conv.get("user_profile", {}).get("weak_points", [])
+
+            system2 = f"""你是一位资深的学习导师和技术专家，正在辅导用户学习「{goal}」。
+
+用户画像：
+- 当前基础：{base}
+- 已掌握知识点：{', '.join(completed) if completed else '暂无'}
+- 薄弱环节：{', '.join(weak) if weak else '暂无'}
+
+回答要求：
+1. 结合用户的学习进度和基础，给出针对性的解释，不要太简单也不要太深入
+2. 先给结论，再展开解释，结构清晰
+3. 涉及代码时给出可运行的示例，并加注释
+4. 涉及概念时用类比帮助理解
+5. 如果用户的问题与当前学习内容相关，联系已学知识点
+6. 回答末尾可以给出1-2个延伸学习建议
+7. 语气友好、鼓励，像一位耐心的私教
+8. 不要使用emoji，用简洁专业的语言"""
+
             return call_llm_text(system2, user_message)
 
     return "我在听，请告诉我你的学习目标或进度。"
