@@ -1,11 +1,10 @@
 import json
 from openai import OpenAI
-from config import DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL
-
-client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url=DEEPSEEK_BASE_URL)
+import config
 
 def call_llm(system_prompt, user_prompt, temperature=0.3):
     """统一调用大模型"""
+    client = OpenAI(api_key=config.DEEPSEEK_API_KEY, base_url=config.DEEPSEEK_BASE_URL)
     resp = client.chat.completions.create(
         model=DEEPSEEK_MODEL,
         messages=[
