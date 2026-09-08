@@ -776,6 +776,10 @@ def detect_intent(message: str, stage: str, conv: dict) -> dict:
     if any(k in msg for k in ["测试", "出题", "考考我", "练习", "做题", "测验"]):
         return {"action": "quiz"}
 
+    # 取消测试
+    if any(k in msg for k in ["取消测试", "不答了", "放弃测试", "重新出题", "换个题"]):
+        return {"action": "cancel_quiz"}
+
     # 情绪/鼓励（必须是明确的消极情绪）
     if any(k in msg for k in ["太难了", "学不会", "想放弃", "好累", "焦虑", "压力大", "没信心", "学不下去", "不想学了"]):
         return {"action": "motivation"}
@@ -940,46 +944,79 @@ def process_chat_message(conv: dict, user_message: str) -> str:
         if action == "next_step":
             return get_next_step(conv)
 
+        if action == "cancel_quiz":
+            conv["quiz_active"] = False
+            conv["quiz_questions"] = []
+            return "已取消当前测试。你可以说「考考我」重新开始，或者指定阶段，比如「考考我气体」。"
+
         if action == "quiz":
             # 检查是否正在答题中
             if conv.get("quiz_active"):
-                return "你正在答题中，请先回答当前题目。回答格式：1.A 2.xxx 3.B ..."
+                return "你正在答题中，请先回答当前题目。\n回答格式：1.A 2.你的回答 3.C ...\n\n如果想取消，说「取消测试」。"
 
-            # 生成当前阶段的测试题
+            # 生成测试题
             skill_tree = conv.get("skill_tree", {})
             plans = skill_tree.get("plans", [])
-            if plans:
-                stages = plans[0].get("stages", [])
-                # 找第一个未完全掌握的阶段
-                target_stage = None
+            if not plans:
+                return "还没有学习计划，请先告诉我你的学习目标。"
+
+            stages = plans[0].get("stages", [])
+            if not stages:
+                return "技能树中没有阶段，请重新生成学习计划。"
+
+            # 从用户消息中提取阶段关键词，尝试匹配指定阶段
+            target_stage = None
+            user_msg = user_message
+            # 移除"考考我""测试题""出题"等词，剩下的可能是阶段名
+            keyword = re.sub(r'(考考我|测试题|测试|出题|练习|做题|测验|阶段|章|的)', '', user_msg).strip()
+
+            if keyword and len(keyword) > 1:
+                # 尝试匹配包含关键词的阶段
+                for stage in stages:
+                    stage_name = stage.get("stage_name", "")
+                    if keyword in stage_name or stage_name in keyword:
+                        target_stage = stage
+                        conv["current_stage"] = stage_name
+                        break
+
+            # 如果没匹配到指定阶段，找第一个未完全掌握的阶段
+            if not target_stage:
                 for stage in stages:
                     kps = stage.get("knowledge_points", [])
-                    stage_kps = [kp.get("name","") if isinstance(kp,dict) else str(kp) for kp in kps]
-                    if not all(k in conv.get("completed_kps", []) for k in stage_kps):
+                    stage_kps = [kp.get("name", "") if isinstance(kp, dict) else str(kp) for kp in kps]
+                    if stage_kps and not all(k in conv.get("completed_kps", []) for k in stage_kps):
                         target_stage = stage
                         conv["current_stage"] = stage.get("stage_name", "")
                         break
 
-                if target_stage:
-                    quiz = generate_quiz(target_stage, 5)
-                    questions = quiz.get("questions", [])
-                    if questions:
-                        conv["quiz_active"] = True
-                        conv["quiz_questions"] = questions
-                        conv["quiz_answers"] = [""] * len(questions)
+            if not target_stage:
+                return "所有阶段都已掌握！你可以说「重新生成计划」开始新的学习，或者去「学习统计」查看你的成绩。"
 
-                        reply = f"为你准备了「{target_stage.get('stage_name','')}」阶段的测试题（共{len(questions)}题）：\n\n"
-                        for i, q in enumerate(questions, 1):
-                            q_type = q.get("type", "")
-                            reply += f"{i}. [{q_type}] {q.get('question','')}\n"
-                            if q.get("options"):
-                                for j, opt in enumerate(q["options"]):
-                                    letter = chr(65 + j)
-                                    reply += f"   {letter}. {opt}\n"
-                            reply += "\n"
-                        reply += "请按顺序回答，格式：1.A 2.你的回答 3.C ...\n回答后我会批改并记录成绩。"
-                        return reply
-            return "还没有可测试的阶段，先去学习吧。"
+            # 调用大模型生成测试题
+            quiz = generate_quiz(target_stage, 5)
+            if "error" in quiz:
+                return f"生成测试题时出错：{quiz['error']}\n\n可能原因：API Key错误、余额不足、或网络问题。请检查左侧边栏的API Key配置。"
+
+            questions = quiz.get("questions", [])
+            if not questions:
+                return "生成测试题失败，大模型没有返回题目。请稍后重试，或者说「取消测试」。"
+
+            conv["quiz_active"] = True
+            conv["quiz_questions"] = questions
+            conv["quiz_answers"] = [""] * len(questions)
+
+            stage_name = target_stage.get("stage_name", "")
+            reply = f"为你准备了「{stage_name}」阶段的测试题（共{len(questions)}题）：\n\n"
+            for i, q in enumerate(questions, 1):
+                q_type = q.get("type", "")
+                reply += f"{i}. [{q_type}] {q.get('question', '')}\n"
+                if q.get("options"):
+                    for j, opt in enumerate(q["options"]):
+                        letter = chr(65 + j)
+                        reply += f"   {letter}. {opt}\n"
+                reply += "\n"
+            reply += "请按顺序回答，格式：1.A 2.你的回答 3.C ...\n回答后我会批改并记录成绩。\n\n想取消测试说「取消测试」。"
+            return reply
 
         # 检查是否正在答题中（用户输入的是答案）
         if conv.get("quiz_active") and conv.get("quiz_questions"):
