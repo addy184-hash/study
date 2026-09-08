@@ -182,8 +182,9 @@ function renderChat() {
     }
 
     messagesEl.innerHTML = conv.messages.map(msg => {
+        const imgHtml = msg.image ? `<img src="${msg.image}" class="message-img" alt="学习记录">` : '';
         return `<div class="message ${msg.role}">
-            <div class="message-bubble">${escapeHtml(msg.content)}</div>
+            <div class="message-bubble">${escapeHtml(msg.content)}${imgHtml}</div>
         </div>`;
     }).join('');
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -250,6 +251,48 @@ function handleKeyDown(e) {
     }
 }
 
+// 图片上传处理
+let pendingImage = null;
+
+function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        alert('请选择图片文件');
+        return;
+    }
+    // 压缩图片
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.createElement('canvas');
+            let w = img.width, h = img.height;
+            const maxSize = 800;
+            if (w > maxSize || h > maxSize) {
+                if (w > h) { h = h * maxSize / w; w = maxSize; }
+                else { w = w * maxSize / h; h = maxSize; }
+            }
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            pendingImage = canvas.toDataURL('image/jpeg', 0.7);
+            // 显示预览
+            document.getElementById('previewImg').src = pendingImage;
+            document.getElementById('imgPreview').style.display = 'inline-block';
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+}
+
+function removeImage() {
+    pendingImage = null;
+    document.getElementById('imgPreview').style.display = 'none';
+    document.getElementById('previewImg').src = '';
+}
+
 function sendExample(text) {
     document.getElementById('userInput').value = text;
     sendMessage();
@@ -282,17 +325,26 @@ async function sendMessage() {
     if (sendBtn) sendBtn.disabled = true;
     if (typingIndicator) typingIndicator.style.display = 'block';
 
+    // 清除图片预览
+    const hasImage = !!pendingImage;
+    const imageData = pendingImage;
+    removeImage();
+
     try {
-        // 先添加用户消息
-        conv.messages.push({ role: 'user', content: message });
+        // 先添加用户消息（带图片）
+        const userMsg = { role: 'user', content: message };
+        if (imageData) userMsg.image = imageData;
+        conv.messages.push(userMsg);
         updateConv(conv);
         renderChat();
 
-        // 发送API请求
+        // 发送API请求（带图片）
+        const payload = { conv: conv, message: message };
+        if (imageData) payload.image = imageData;
         const res = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ conv: conv, message: message })
+            body: JSON.stringify(payload)
         });
 
         if (!res.ok) {
