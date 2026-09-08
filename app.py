@@ -375,19 +375,22 @@ with tab1:
                     diff_class = 'tag-easy' if diff == '入门' else ('tag-mid' if diff == '进阶' else 'tag-hard')
                     checked = kp_name in (st.session_state.history[idx].get('completed_kps', []) if idx is not None else [])
 
+                    # 构造meta文本，避免HTML内条件表达式导致解析异常
+                    meta_parts = [f'<span class="tag {diff_class}">{diff}</span>']
+                    if prereq:
+                        meta_parts.append(f"先修：{'、'.join(prereq)}")
+                    if kp_hours:
+                        meta_parts.append(f"约{kp_hours}小时")
+                    meta_text = " · ".join(meta_parts[1:]) if len(meta_parts) > 1 else ""
+                    meta_html = meta_parts[0] + (f" · {meta_text}" if meta_text else "")
+
                     c1, c2 = st.columns([0.85, 0.15])
                     with c1:
-                        st.markdown(f'''
-                        <div class="kp-item">
-                            <div>
-                                <div class="kp-name">{kp_name}</div>
-                                <div class="kp-meta">
-                                    <span class="tag {diff_class}">{diff}</span>
-                                    {"先修：" + "、".join(prereq) if prereq else ""}
-                                    {" | 约" + str(kp_hours) + "小时" if kp_hours else ""}
-                                </div>
-                            </div>
-                        </div>''', unsafe_allow_html=True)
+                        st.markdown(
+                            f'<div class="kp-item"><div class="kp-name">{kp_name}</div>'
+                            f'<div class="kp-meta">{meta_html}</div></div>',
+                            unsafe_allow_html=True
+                        )
                     with c2:
                         if st.checkbox("已掌握", value=checked, key=f"kp_{i}_{kp_name}", label_visibility="collapsed"):
                             if idx is not None and kp_name not in st.session_state.history[idx]['completed_kps']:
