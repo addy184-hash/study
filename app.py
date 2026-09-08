@@ -168,7 +168,30 @@ if st.session_state.current_conv_id:
             break
 
 if not current_conv:
-    st.info("👈 点击左侧「新建对话」开始你的学习规划")
+    st.markdown("### 欢迎使用智能学习伴侣")
+    st.write("输入你的学习目标，AI会为你生成个性化的学习计划、技能树和资源推荐。")
+    st.markdown("---")
+    if st.button("开始新的学习规划", type="primary", use_container_width=True):
+        new_conv = {
+            "id": str(uuid.uuid4()),
+            "goal": "",
+            "base": "",
+            "hours": 0,
+            "deadline": "",
+            "preference": [],
+            "skill_tree": {},
+            "resources": {},
+            "plan": {},
+            "completed_kps": [],
+            "messages": [{"role": "assistant", "content": "你好！我是你的智能学习伴侣。请告诉我你想学什么，比如「我想在1个月内学会Python数据分析」，我会为你生成个性化的学习计划。"}],
+            "stage": "collecting",
+            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+        }
+        st.session_state.conversations.append(new_conv)
+        st.session_state.current_conv_id = new_conv["id"]
+        save_conversations(st.session_state.conversations)
+        st.rerun()
+    st.caption("也可以点击左上角菜单按钮，在侧边栏查看历史对话")
     st.stop()
 
 # ========== 主区域：聊天界面 ==========

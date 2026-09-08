@@ -48,7 +48,7 @@ def call_llm_text(system_prompt: str, user_prompt: str, temperature: float = 0.7
     """非JSON格式的LLM调用，使用推理模型(deepseek-reasoner)，回答质量更高"""
     try:
         if not config.DEEPSEEK_API_KEY:
-            return "⚠️ 未配置DeepSeek API Key，请在左侧边栏填写，或在Render环境变量中设置DEEPSEEK_API_KEY。"
+            return "[警告] 未配置DeepSeek API Key，请在左侧边栏填写，或在Render环境变量中设置DEEPSEEK_API_KEY。"
         resp = _client().chat.completions.create(
             model=config.DEEPSEEK_REASONER_MODEL,
             messages=[
@@ -61,11 +61,11 @@ def call_llm_text(system_prompt: str, user_prompt: str, temperature: float = 0.7
     except Exception as e:
         error_msg = str(e)
         if "401" in error_msg or "authentication" in error_msg.lower():
-            return "⚠️ API Key认证失败，请检查DeepSeek API Key是否正确。"
+            return "[警告] API Key认证失败，请检查DeepSeek API Key是否正确。"
         elif "404" in error_msg:
-            return "⚠️ API地址或模型名称错误，请检查配置。"
+            return "[警告] API地址或模型名称错误，请检查配置。"
         elif "rate" in error_msg.lower() or "limit" in error_msg.lower():
-            return "⚠️ API调用频率超限或余额不足，请稍后再试或检查账户余额。"
+            return "[警告] API调用频率超限或余额不足，请稍后再试或检查账户余额。"
         return f"回答时出错：{error_msg}"
 
 
