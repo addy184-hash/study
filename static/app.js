@@ -9,6 +9,14 @@ const STORAGE_KEY = 'study_planner_conversations';
 document.addEventListener('DOMContentLoaded', () => {
     loadConversations();
     renderConvList();
+    renderChat();
+    // 如果当前对话有技能树，显示详情面板
+    const conv = getCurrentConv();
+    if (conv && conv.skill_tree && Object.keys(conv.skill_tree).length > 0) {
+        const detailPanel = document.getElementById('detailPanel');
+        if (detailPanel) detailPanel.style.display = 'flex';
+        renderAllDetails();
+    }
     checkApiStatus();
     autoResizeTextarea();
 });
@@ -117,24 +125,27 @@ function selectConversation(id) {
     renderConvList();
     renderChat();
     const conv = getCurrentConv();
+    const detailPanel = document.getElementById('detailPanel');
     if (conv && conv.skill_tree && Object.keys(conv.skill_tree).length > 0) {
-        document.getElementById('detailPanel').style.display = 'flex';
+        if (detailPanel) detailPanel.style.display = 'flex';
         renderAllDetails();
     } else {
-        document.getElementById('detailPanel').style.display = 'none';
+        if (detailPanel) detailPanel.style.display = 'none';
     }
 }
 
 // ========== 聊天渲染 ==========
 function renderChat() {
     const conv = getCurrentConv();
-    if (!conv) return;
-
-    document.getElementById('chatTitle').textContent = conv.goal || '新对话';
-    document.getElementById('chatSubtitle').textContent = conv.created_at ? `创建于 ${conv.created_at}` : '';
-
+    const chatTitle = document.getElementById('chatTitle');
+    const chatSubtitle = document.getElementById('chatSubtitle');
     const messagesEl = document.getElementById('messages');
     const welcome = document.getElementById('welcomeScreen');
+
+    if (!conv || !messagesEl || !welcome) return;
+
+    if (chatTitle) chatTitle.textContent = conv.goal || '新对话';
+    if (chatSubtitle) chatSubtitle.textContent = conv.created_at ? `创建于 ${conv.created_at}` : '';
 
     if (conv.messages.length <= 1) {
         welcome.style.display = 'block';
