@@ -251,9 +251,11 @@ if current_conv.get("skill_tree"):
                             url = r.get("url", "") if isinstance(r, dict) else ""
                             author = r.get("author", "") if isinstance(r, dict) else ""
                             if url:
-                                # 真实链接，可直接点击
-                                author_info = f" - UP: {author}" if author else ""
-                                st.markdown(f'- [{name}]({url}) ({rtype}){author_info}')
+                                # 真实链接，可直接点击，显示来源标签
+                                source = r.get("source", "")
+                                source_tag = f" <span class='tag tag-mid'>{source}</span>" if source else ""
+                                author_info = f" - {author}" if author else ""
+                                st.markdown(f'- [{name}]({url}){source_tag}{author_info}', unsafe_allow_html=True)
                             else:
                                 st.markdown(f'- **{name}** ({rtype})  [B站搜索](https://search.bilibili.com/all?keyword={kp_name} {name}) · [百度搜索](https://www.baidu.com/s?wd={kp_name} {name})')
 

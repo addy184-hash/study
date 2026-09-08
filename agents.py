@@ -51,7 +51,7 @@ def call_llm_text(system_prompt: str, user_prompt: str, temperature: float = 0.5
         return f"回答时出错：{str(e)}"
 
 
-# ========== 工具1：B站搜索（Researcher Agent使用） ==========
+# ========== 工具1：多源搜索工具（Researcher Agent使用） ==========
 def search_bilibili(keyword: str, limit: int = 3) -> list:
     """调用B站搜索API，返回真实视频链接，不需要API Key"""
     if not HAS_REQUESTS:
@@ -74,30 +74,128 @@ def search_bilibili(keyword: str, limit: int = 3) -> list:
                 "type": "视频",
                 "url": f"https://www.bilibili.com/video/{bvid}",
                 "author": item.get("author", ""),
-                "play": item.get("play", 0)
+                "source": "B站"
             })
         return results
     except:
         return []
 
 
-def search_resources_for_kp(kp_name: str, preference: list = None) -> dict:
-    """为单个知识点搜索真实资源，返回beginner/advanced/practice三级"""
-    # 入门：搜教程
-    beginner = search_bilibili(f"{kp_name} 教程 入门", 2)
-    # 进阶：搜实战
-    advanced = search_bilibili(f"{kp_name} 实战 进阶", 2)
-    # 练习：搜题目
-    practice = search_bilibili(f"{kp_name} 练习题 面试题", 2)
+def search_zhihu(keyword: str, limit: int = 3) -> list:
+    """知乎搜索 - 返回知乎搜索结果页链接（知乎API需认证，用站内搜索链接）"""
+    encoded = requests.utils.quote(keyword) if HAS_REQUESTS else keyword
+    return [{
+        "name": f"知乎：{keyword} 相关回答",
+        "type": "文章",
+        "url": f"https://www.zhihu.com/search?type=content&q={encoded}",
+        "author": "知乎社区",
+        "source": "知乎"
+    }]
 
-    # 如果搜索结果为空，用LLM生成占位资源
-    if not beginner and not advanced and not practice:
-        return {
-            "beginner": [{"name": f"{kp_name}入门教程", "type": "视频", "url": ""}],
-            "advanced": [{"name": f"{kp_name}进阶实战", "type": "文档", "url": ""}],
-            "practice": [{"name": f"{kp_name}练习题", "type": "实战", "url": ""}]
-        }
-    return {"beginner": beginner, "advanced": advanced, "practice": practice}
+
+def search_official_docs(keyword: str) -> list:
+    """智能匹配官方文档 - 根据关键词判断技术栈，返回对应官方文档搜索链接"""
+    kw = keyword.lower()
+    doc_map = [
+        (["python", "pandas", "numpy", "django", "flask", "scrapy", "requests"],
+         "Python官方文档", f"https://docs.python.org/3/search.html?q={keyword}"),
+        (["javascript", "js", "html", "css", "web", "前端", "dom", "ajax"],
+         "MDN Web文档", f"https://developer.mozilla.org/zh-CN/search?q={keyword}"),
+        (["react", "hooks", "redux", "nextjs"],
+         "React官方文档", f"https://react.dev/search?q={keyword}"),
+        (["vue", "vuex", "pinia", "nuxt"],
+         "Vue官方文档", f"https://cn.vuejs.org/search/?q={keyword}"),
+        (["java", "spring", "maven", "jvm"],
+         "Java官方文档", f"https://docs.oracle.com/en/java/javase/17/docs/api/index.html"),
+        (["mysql", "sql", "数据库", "redis", "mongodb"],
+         "MySQL官方文档", f"https://dev.mysql.com/doc/search/?q={keyword}"),
+        (["linux", "shell", "bash", "docker", "nginx"],
+         "Linux/Docker文档", f"https://docs.docker.com/search/?q={keyword}"),
+        (["算法", "数据结构", "leetcode", "刷题"],
+         "LeetCode题解", f"https://leetcode.cn/search/?q={keyword}"),
+        (["git", "github", "版本控制"],
+         "Git官方文档", f"https://git-scm.com/search/results?search={keyword}"),
+        (["机器学习", "深度学习", "pytorch", "tensorflow", "ai", "神经网络"],
+         "PyTorch官方文档", f"https://pytorch.org/docs/stable/search.html?q={keyword}"),
+    ]
+
+    for keywords, doc_name, url in doc_map:
+        if any(k in kw for k in keywords):
+            return [{
+                "name": f"{doc_name}：{keyword}",
+                "type": "官方文档",
+                "url": url,
+                "author": doc_name,
+                "source": "官方文档"
+            }]
+    # 通用：Google搜索官方文档
+    encoded = requests.utils.quote(f"{keyword} 官方文档") if HAS_REQUESTS else keyword
+    return [{
+        "name": f"搜索官方文档：{keyword}",
+        "type": "官方文档",
+        "url": f"https://www.google.com/search?q={encoded}",
+        "author": "Google",
+        "source": "官方文档"
+    }]
+
+
+def search_github(keyword: str) -> list:
+    """GitHub搜索 - 返回相关项目搜索链接"""
+    encoded = requests.utils.quote(keyword) if HAS_REQUESTS else keyword
+    return [{
+        "name": f"GitHub：{keyword} 相关项目",
+        "type": "开源项目",
+        "url": f"https://github.com/search?q={keyword}&type=repositories",
+        "author": "GitHub",
+        "source": "GitHub"
+    }]
+
+
+def multi_source_search(kp_name: str, preference: list = None) -> dict:
+    """多源搜索：整合B站+知乎+官方文档+GitHub，为知识点返回真实资源"""
+    beginner = []
+    advanced = []
+    practice = []
+
+    # B站：入门教程
+    bv_beginner = search_bilibili(f"{kp_name} 教程 入门", 2)
+    beginner.extend(bv_beginner)
+
+    # B站：进阶实战
+    bv_advanced = search_bilibili(f"{kp_name} 实战 进阶", 2)
+    advanced.extend(bv_advanced)
+
+    # 知乎：深度文章
+    zhihu = search_zhihu(f"{kp_name} 原理 详解")
+    advanced.extend(zhihu)
+
+    # 官方文档
+    docs = search_official_docs(kp_name)
+    beginner.extend(docs)
+
+    # GitHub：实战项目
+    github = search_github(f"{kp_name} example")
+    practice.extend(github)
+
+    # B站：练习题
+    bv_practice = search_bilibili(f"{kp_name} 练习题 面试题", 2)
+    practice.extend(bv_practice)
+
+    # 去重
+    def dedup(lst):
+        seen = set()
+        result = []
+        for item in lst:
+            if item["url"] not in seen:
+                seen.add(item["url"])
+                result.append(item)
+        return result
+
+    return {
+        "beginner": dedup(beginner)[:5],
+        "advanced": dedup(advanced)[:5],
+        "practice": dedup(practice)[:5]
+    }
 
 
 # ========== 工具2：ICS日历导出（Coach Agent使用） ==========
@@ -310,7 +408,7 @@ def _extract_kp_from_question(question: str) -> str:
 
 # ========== 多智能体共享状态 ==========
 class LearningState(TypedDict):
-    """三智能体共享的全局状态"""
+    """三智能体共享的全局状态（ReAct模式）"""
     goal: str
     base: str
     hours: float
@@ -321,6 +419,8 @@ class LearningState(TypedDict):
     plan: Dict[str, Any]             # 计划调优智能体输出
     completed_kps: List[str]
     feedback: str                    # 用户反馈，供调优智能体使用
+    thought: str                     # Supervisor的思考过程
+    next_action: str                 # Supervisor决定的下一步：planner/researcher/coach/finish
     error: str
 
 
@@ -371,28 +471,20 @@ def researcher_agent(state: LearningState) -> Dict[str, Any]:
     if "error" in framework:
         return {"error": f"资源推荐智能体出错：{framework['error']}"}
 
-    # 第二步：调用B站搜索工具，为每个知识点补全真实链接
+    # 第二步：调用多源搜索工具，为每个知识点补全真实链接
     resources_list = framework.get("resources", [])
     for item in resources_list:
         kp_name = item.get("knowledge_point", "")
-        # 用知识点名称搜索真实视频
-        search_results = search_bilibili(f"{kp_name} 教程", 3)
-        if search_results:
-            # 把搜索结果合并到beginner
-            existing = item.get("beginner", [])
-            for r in search_results:
-                if not any(e.get("name") == r["name"] for e in existing):
-                    existing.append(r)
-            item["beginner"] = existing[:5]
+        # 多源搜索：B站+知乎+官方文档+GitHub
+        search_results = multi_source_search(kp_name, state.get("preference", []))
 
-        # 搜索实战资源
-        practice_results = search_bilibili(f"{kp_name} 实战", 2)
-        if practice_results:
-            existing_p = item.get("practice", [])
-            for r in practice_results:
-                if not any(e.get("name") == r["name"] for e in existing_p):
-                    existing_p.append(r)
-            item["practice"] = existing_p[:3]
+        # 合并搜索结果到对应级别
+        for level in ["beginner", "advanced", "practice"]:
+            existing = item.get(level, [])
+            for r in search_results.get(level, []):
+                if not any(e.get("url") == r["url"] for e in existing if e.get("url")):
+                    existing.append(r)
+            item[level] = existing[:6]
 
     return {"resources": {"resources": resources_list}}
 
@@ -431,51 +523,88 @@ def coach_agent(state: LearningState) -> Dict[str, Any]:
         return {"plan": result}
 
 
-# ========== 条件路由 ==========
-def route_after_planner(state: LearningState) -> str:
-    """任务拆分后 → 资源推荐"""
-    if state.get("error"):
+# ========== 智能体0：Supervisor调度智能体 (ReAct核心) ==========
+def supervisor_agent(state: LearningState) -> Dict[str, Any]:
+    """
+    角色：学习规划总监
+    职责：观察当前状态，自主决策下一步调用哪个Agent，或结束任务
+    决策逻辑：
+    - 没有skill_tree → 调用planner
+    - 有skill_tree但没有resources → 调用researcher
+    - 有skill_tree和resources但没有plan → 调用coach
+    - 有feedback需要调优 → 调用coach
+    - 全部完成 → finish
+    """
+    has_skill_tree = bool(state.get("skill_tree"))
+    has_resources = bool(state.get("resources"))
+    has_plan = bool(state.get("plan"))
+    has_feedback = bool(state.get("feedback"))
+
+    # ReAct思考过程
+    thought = f"当前状态：技能树={'有' if has_skill_tree else '无'}，资源={'有' if has_resources else '无'}，计划={'有' if has_plan else '无'}，反馈={'有' if has_feedback else '无'}"
+
+    if has_feedback:
+        thought += " → 用户有反馈，需要调优计划"
+        next_action = "coach"
+    elif not has_skill_tree:
+        thought += " → 需要先拆解技能树"
+        next_action = "planner"
+    elif not has_resources:
+        thought += " → 技能树已有，需要匹配资源"
+        next_action = "researcher"
+    elif not has_plan:
+        thought += " → 资源已有，需要生成计划"
+        next_action = "coach"
+    else:
+        thought += " → 全部完成，结束任务"
+        next_action = "finish"
+
+    return {"thought": thought, "next_action": next_action}
+
+
+def route_supervisor(state: LearningState) -> str:
+    """根据Supervisor的决策路由"""
+    action = state.get("next_action", "finish")
+    if action == "planner":
+        return "planner"
+    elif action == "researcher":
+        return "researcher"
+    elif action == "coach":
+        return "coach"
+    else:
         return END
-    return "researcher"
 
 
-def route_after_researcher(state: LearningState) -> str:
-    """资源推荐后 → 计划调优"""
-    if state.get("error"):
-        return END
-    return "coach"
-
-
-def route_after_coach(state: LearningState) -> str:
-    """计划调优后 → 结束"""
-    return END
-
-
-# ========== 构建 LangGraph 图 ==========
+# ========== 构建 LangGraph 图（ReAct自主决策模式） ==========
 def build_graph():
-    """构建三智能体工作流图"""
+    """
+    构建ReAct模式的多智能体工作流图
+    Supervisor → Planner/Researcher/Coach → Supervisor → ... → END
+    Supervisor每次观察状态，自主决定下一步，实现自主决策循环
+    """
     graph = StateGraph(LearningState)
 
-    # 添加三个智能体节点
+    # 添加四个节点：Supervisor + 三个工作Agent
+    graph.add_node("supervisor", supervisor_agent)
     graph.add_node("planner", planner_agent)
     graph.add_node("researcher", researcher_agent)
     graph.add_node("coach", coach_agent)
 
-    # 入口：任务拆分
-    graph.set_entry_point("planner")
+    # 入口：Supervisor
+    graph.set_entry_point("supervisor")
 
-    # 边：planner → researcher → coach → END
-    graph.add_conditional_edges("planner", route_after_planner, {
+    # Supervisor决策路由
+    graph.add_conditional_edges("supervisor", route_supervisor, {
+        "planner": "planner",
         "researcher": "researcher",
-        END: END
-    })
-    graph.add_conditional_edges("researcher", route_after_researcher, {
         "coach": "coach",
         END: END
     })
-    graph.add_conditional_edges("coach", route_after_coach, {
-        END: END
-    })
+
+    # 工作Agent执行完回到Supervisor，继续决策
+    graph.add_edge("planner", "supervisor")
+    graph.add_edge("researcher", "supervisor")
+    graph.add_edge("coach", "supervisor")
 
     return graph.compile()
 
@@ -492,7 +621,7 @@ def get_graph():
 
 # ========== 对外接口 ==========
 def generate_learning_plan(goal: str, base: str, hours: float, deadline: str, preference: list = None) -> dict:
-    """完整流程：任务拆分 → 资源推荐 → 计划生成"""
+    """完整流程：Supervisor自主调度 Planner → Researcher → Coach"""
     state: LearningState = {
         "goal": goal,
         "base": base,
@@ -504,6 +633,8 @@ def generate_learning_plan(goal: str, base: str, hours: float, deadline: str, pr
         "plan": {},
         "completed_kps": [],
         "feedback": "",
+        "thought": "",
+        "next_action": "",
         "error": ""
     }
     result = get_graph().invoke(state)
@@ -511,15 +642,11 @@ def generate_learning_plan(goal: str, base: str, hours: float, deadline: str, pr
 
 
 def adjust_learning_plan(state: LearningState, feedback: str) -> dict:
-    """仅调优：调用教练智能体调整计划"""
+    """仅调优：Supervisor检测到feedback后自动调用Coach"""
     state["feedback"] = feedback
-    # 只跑coach节点，从中间开始
-    graph = StateGraph(LearningState)
-    graph.add_node("coach", coach_agent)
-    graph.set_entry_point("coach")
-    graph.add_edge("coach", END)
-    coach_only = graph.compile()
-    result = coach_only.invoke(state)
+    state["thought"] = ""
+    state["next_action"] = ""
+    result = get_graph().invoke(state)
     return result
 
 
@@ -884,6 +1011,8 @@ def process_chat_message(conv: dict, user_message: str) -> str:
                 "plan": conv.get("plan", {}),
                 "completed_kps": completed,
                 "feedback": user_message,
+                "thought": "",
+                "next_action": "",
                 "error": ""
             }
             result = adjust_learning_plan(state, user_message)
