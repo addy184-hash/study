@@ -355,13 +355,47 @@ function quickAction(type) {
         quiz: '考考我',
         adjust: '帮我调整一下学习计划',
         next: '我下一步应该学什么',
+        record: '',
         export: ''
     };
     if (type === 'export') {
         downloadICS();
         return;
     }
+    if (type === 'record') {
+        // 显示时长快速选择
+        showRecordPicker();
+        return;
+    }
     document.getElementById('userInput').value = messages[type];
+    sendMessage();
+}
+
+// 学习时长快速选择器
+function showRecordPicker() {
+    const existing = document.getElementById('recordPicker');
+    if (existing) { existing.remove(); return; }
+    const picker = document.createElement('div');
+    picker.id = 'recordPicker';
+    picker.className = 'record-picker';
+    picker.innerHTML = `
+        <div class="picker-title">今天学了多久？</div>
+        <div class="picker-options">
+            <button onclick="recordHours(0.5)">30分钟</button>
+            <button onclick="recordHours(1)">1小时</button>
+            <button onclick="recordHours(2)">2小时</button>
+            <button onclick="recordHours(3)">3小时</button>
+            <button onclick="recordHours(4)">4小时+</button>
+        </div>
+    `;
+    const inputArea = document.querySelector('.input-area');
+    inputArea.parentNode.insertBefore(picker, inputArea);
+}
+
+function recordHours(hours) {
+    const picker = document.getElementById('recordPicker');
+    if (picker) picker.remove();
+    document.getElementById('userInput').value = `今天学了${hours}小时`;
     sendMessage();
 }
 
@@ -655,8 +689,68 @@ function renderStats() {
 
     const profile = conv.user_profile || {};
     const completed = conv.completed_kps || [];
+    const studyLog = conv.study_log || { total_hours: 0, daily: {}, streak_days: 0, week_hours: 0 };
 
-    let html = `<div class="stats-grid">
+    // 学习时长看板
+    const totalHours = studyLog.total_hours || 0;
+    const weekHours = studyLog.week_hours || 0;
+    const studyDays = Object.keys(studyLog.daily || {}).length;
+    const streak = studyLog.streak_days || 0;
+
+    // 最近7天柱状图数据
+    const today = new Date();
+    const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+    let chartBars = '';
+    let maxHours = 0;
+    const last7 = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dStr = d.toISOString().split('T')[0];
+        const h = (studyLog.daily && studyLog.daily[dStr]) || 0;
+        last7.push({ day: dayNames[d.getDay()], hours: h, date: dStr });
+        if (h > maxHours) maxHours = h;
+    }
+    last7.forEach(item => {
+        const hPercent = maxHours > 0 ? (item.hours / maxHours * 100) : 0;
+        const isToday = item.date === today.toISOString().split('T')[0];
+        chartBars += `<div class="chart-col">
+            <div class="chart-bar-wrap">
+                <div class="chart-bar ${isToday ? 'today' : ''}" style="height:${Math.max(hPercent, 4)}%"></div>
+            </div>
+            <div class="chart-label">${item.day}</div>
+            <div class="chart-value">${item.hours > 0 ? item.hours + 'h' : ''}</div>
+        </div>`;
+    });
+
+    let html = `<div class="stats-section">
+        <div class="stats-section-title">学习时长统计</div>
+        <div class="time-grid">
+            <div class="time-card">
+                <div class="time-value">${totalHours}h</div>
+                <div class="time-label">累计总时长</div>
+            </div>
+            <div class="time-card">
+                <div class="time-value">${weekHours}h</div>
+                <div class="time-label">本周学习</div>
+            </div>
+            <div class="time-card">
+                <div class="time-value">${studyDays}天</div>
+                <div class="time-label">学习天数</div>
+            </div>
+            <div class="time-card">
+                <div class="time-value">${streak}天</div>
+                <div class="time-label">连续打卡</div>
+            </div>
+        </div>
+        <div class="week-chart">
+            <div class="chart-title">最近7天学习时长</div>
+            <div class="chart-bars">${chartBars}</div>
+        </div>
+        <div class="record-hint">在对话框输入「今天学了2小时」即可自动记录</div>
+    </div>`;
+
+    html += `<div class="stats-grid">
         <div class="metric-card"><div class="metric-value">${completed.length}</div><div class="metric-label">已掌握知识点</div></div>
         <div class="metric-card"><div class="metric-value">${profile.total_quizzes || 0}</div><div class="metric-label">测试次数</div></div>
         <div class="metric-card"><div class="metric-value">${profile.avg_score || 0}分</div><div class="metric-label">平均成绩</div></div>

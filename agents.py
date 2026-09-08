@@ -826,6 +826,12 @@ def detect_intent(message: str, stage: str, conv: dict) -> dict:
     if "默认" in msg and ("设置" in msg or "就行" in msg or "开始" in msg):
         return {"action": "use_default"}
 
+    # 记录学习时长（必须在"查看进度"之前，避免"学了多少"误判）
+    import re
+    time_pattern = re.search(r'(\d+(?:\.\d+)?)\s*(小时|个小时|h|分钟|min)', msg, re.IGNORECASE)
+    if time_pattern and any(k in msg for k in ["学了", "学习了", "学完", "今天学", "昨天学", "打卡", "学习时长"]):
+        return {"action": "study_time", "summary": "用户记录学习时长"}
+
     # 查看进度
     if any(k in msg for k in ["进度", "完成了多少", "学到哪", "学了多少", "掌握了多少"]):
         return {"action": "show", "target": "progress"}
@@ -868,6 +874,68 @@ def detect_intent(message: str, stage: str, conv: dict) -> dict:
     if "error" not in result:
         return result
     return {"action": "answer", "summary": ""}
+
+
+def record_study_time(conv: dict, message: str) -> str:
+    """从用户消息中提取学习时长并记录"""
+    import re
+    from datetime import datetime, timedelta
+
+    # 提取时长
+    hours = 0.0
+    # 匹配小时
+    h_match = re.search(r'(\d+(?:\.\d+)?)\s*(小时|个小时|h)', message, re.IGNORECASE)
+    if h_match:
+        hours += float(h_match.group(1))
+    # 匹配分钟
+    m_match = re.search(r'(\d+)\s*(分钟|min)', message, re.IGNORECASE)
+    if m_match:
+        hours += float(m_match.group(1)) / 60
+
+    if hours <= 0:
+        return "我没识别到学习时长，你可以这样说：「今天学了2小时」或「学了90分钟」"
+
+    # 确定日期
+    study_date = datetime.now().strftime("%Y-%m-%d")
+    date_label = "今天"
+    if "昨天" in message:
+        study_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        date_label = "昨天"
+    elif "前天" in message:
+        study_date = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+        date_label = "前天"
+
+    # 初始化study_log
+    if "study_log" not in conv or not conv["study_log"]:
+        conv["study_log"] = {"total_hours": 0.0, "daily": {}}
+
+    log = conv["study_log"]
+    # 累加当天时长（同一天多次记录累加）
+    log["daily"][study_date] = log["daily"].get(study_date, 0.0) + hours
+    log["total_hours"] = round(sum(log["daily"].values()), 1)
+
+    # 计算连续学习天数
+    streak = 0
+    check_date = datetime.now()
+    while True:
+        d_str = check_date.strftime("%Y-%m-%d")
+        if log["daily"].get(d_str, 0) > 0:
+            streak += 1
+            check_date -= timedelta(days=1)
+        else:
+            break
+    log["streak_days"] = streak
+
+    # 本周时长
+    week_start = datetime.now() - timedelta(days=datetime.now().weekday())
+    week_hours = 0.0
+    for i in range(7):
+        d = (week_start + timedelta(days=i)).strftime("%Y-%m-%d")
+        week_hours += log["daily"].get(d, 0)
+    log["week_hours"] = round(week_hours, 1)
+
+    total = log["total_hours"]
+    return f"已记录{date_label}学习 {hours:g} 小时 ✓\n\n累计学习：{total:g} 小时 | 本周：{week_hours:g} 小时 | 连续打卡：{streak} 天\n\n继续保持，坚持就是胜利！"
 
 
 def get_next_step(conv: dict) -> str:
@@ -996,6 +1064,10 @@ def process_chat_message(conv: dict, user_message: str) -> str:
 
     # ===== 学习中阶段 =====
     elif stage == "learning":
+        # 记录学习时长
+        if action == "study_time":
+            return record_study_time(conv, user_message)
+
         if action == "show":
             target = intent.get("target", "plan")
             if target == "progress":

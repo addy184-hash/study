@@ -1030,6 +1030,141 @@ body {
 }
 
 /* 学习统计 */
+/* 学习时长看板 */
+.time-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.time-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 8px;
+    text-align: center;
+}
+
+.time-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.time-label {
+    font-size: 11px;
+    color: var(--sub-text);
+    margin-top: 4px;
+}
+
+/* 周柱状图 */
+.week-chart {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.chart-title {
+    font-size: 12px;
+    color: var(--sub-text);
+    margin-bottom: 10px;
+}
+
+.chart-bars {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-end;
+    height: 80px;
+    gap: 4px;
+}
+
+.chart-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+}
+
+.chart-bar-wrap {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.chart-bar {
+    width: 60%;
+    background: #bfdbfe;
+    border-radius: 3px 3px 0 0;
+    min-height: 2px;
+    transition: height 0.3s;
+}
+
+.chart-bar.today {
+    background: var(--primary);
+}
+
+.chart-label {
+    font-size: 10px;
+    color: var(--sub-text);
+    margin-top: 4px;
+}
+
+.chart-value {
+    font-size: 9px;
+    color: var(--primary);
+}
+
+.record-hint {
+    font-size: 11px;
+    color: var(--sub-text);
+    text-align: center;
+    padding: 6px;
+    background: var(--primary-light);
+    border-radius: 6px;
+}
+
+/* 学习时长快速选择器 */
+.record-picker {
+    padding: 12px 24px;
+    background: var(--card-bg);
+    border-top: 1px solid var(--border);
+}
+
+.picker-title {
+    font-size: 12px;
+    color: var(--sub-text);
+    margin-bottom: 8px;
+}
+
+.picker-options {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.picker-options button {
+    padding: 6px 14px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    font-size: 12px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.picker-options button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
