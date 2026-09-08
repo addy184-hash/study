@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能学习伴侣 | AI学习路径规划</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- 左侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">学</div>
+                    <div class="logo-text">
+                        <div class="logo-title">智能学习伴侣</div>
+                        <div class="logo-sub">AI个性化学习规划</div>
+                    </div>
+                </div>
+            </div>
+            <button class="new-chat-btn" onclick="newConversation()">+ 新建对话</button>
+            <div class="conv-list-title">历史对话</div>
+            <div class="conv-list" id="convList"></div>
+            <div class="sidebar-footer">
+                <div class="api-status" id="apiStatus">
+                    <span class="status-dot"></span>
+                    <span id="apiStatusText">检查中...</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 主区域 -->
+        <main class="main">
+            <!-- 聊天区域 -->
+            <div class="chat-area" id="chatArea">
+                <div class="chat-header" id="chatHeader">
+                    <div class="chat-title" id="chatTitle">智能学习伴侣</div>
+                    <div class="chat-subtitle" id="chatSubtitle">输入你的学习目标，AI为你规划</div>
+                </div>
+                <div class="messages" id="messages">
+                    <div class="welcome-screen" id="welcomeScreen">
+                        <div class="welcome-icon">🎯</div>
+                        <h2>欢迎使用智能学习伴侣</h2>
+                        <p>告诉我你想学什么，我会为你生成个性化的学习计划、技能树和资源推荐</p>
+                        <div class="example-chips">
+                            <div class="chip" onclick="sendExample('我想在1个月内学会Python数据分析')">1个月学会Python数据分析</div>
+                            <div class="chip" onclick="sendExample('我想7天速成前端开发')">7天速成前端开发</div>
+                            <div class="chip" onclick="sendExample('我想备考考研数学')">备考考研数学</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="input-area">
+                    <div class="input-wrapper">
+                        <textarea id="userInput" placeholder="输入你的学习目标或进度反馈..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
+                        <button class="send-btn" onclick="sendMessage()" id="sendBtn">发送</button>
+                    </div>
+                    <div class="input-hint">按 Enter 发送，Shift+Enter 换行</div>
+                </div>
+            </div>
+
+            <!-- 详情面板 -->
+            <div class="detail-panel" id="detailPanel" style="display:none;">
+                <div class="detail-tabs">
+                    <button class="tab-btn active" data-tab="skilltree" onclick="switchTab('skilltree')">技能树</button>
+                    <button class="tab-btn" data-tab="resources" onclick="switchTab('resources')">资源推荐</button>
+                    <button class="tab-btn" data-tab="plan" onclick="switchTab('plan')">学习计划</button>
+                    <button class="tab-btn" data-tab="quiz" onclick="switchTab('quiz')">测试记录</button>
+                    <button class="tab-btn" data-tab="stats" onclick="switchTab('stats')">学习统计</button>
+                </div>
+                <div class="detail-content">
+                    <div class="tab-pane active" id="tab-skilltree"></div>
+                    <div class="tab-pane" id="tab-resources"></div>
+                    <div class="tab-pane" id="tab-plan"></div>
+                    <div class="tab-pane" id="tab-quiz"></div>
+                    <div class="tab-pane" id="tab-stats"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 加载遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay" style="display:none;">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">AI正在思考...</div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
