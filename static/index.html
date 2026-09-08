@@ -39,15 +39,58 @@
                     <div class="chat-subtitle" id="chatSubtitle">输入你的学习目标，AI为你规划</div>
                 </div>
                 <div class="messages" id="messages"></div>
+                <!-- 正在输入提示 -->
+                <div class="typing-indicator" id="typingIndicator" style="display:none;">
+                    <div class="typing-bubble">
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-text">正在生成...</span>
+                    </div>
+                </div>
                 <div class="welcome-screen" id="welcomeScreen">
                     <div class="welcome-icon">🎯</div>
-                    <h2>欢迎使用智能学习伴侣</h2>
-                    <p>告诉我你想学什么，我会为你生成个性化的学习计划、技能树和资源推荐</p>
-                    <div class="example-chips">
-                        <div class="chip" onclick="sendExample('我想在1个月内学会Python数据分析')">1个月学会Python数据分析</div>
-                        <div class="chip" onclick="sendExample('我想7天速成前端开发')">7天速成前端开发</div>
-                        <div class="chip" onclick="sendExample('我想备考考研数学')">备考考研数学</div>
+                    <h2>选择一个目标，立刻开始</h2>
+                    <p>点击下方模板一键生成，或直接输入你想学的内容</p>
+                    <div class="template-grid">
+                        <div class="template-card" onclick="sendExample('我想在1个月内学会Python数据分析')">
+                            <div class="template-icon">🐍</div>
+                            <div class="template-name">Python数据分析</div>
+                            <div class="template-desc">1个月 · 零基础</div>
+                        </div>
+                        <div class="template-card" onclick="sendExample('我想7天速成前端开发')">
+                            <div class="template-icon">🌐</div>
+                            <div class="template-name">前端开发</div>
+                            <div class="template-desc">7天 · 速成</div>
+                        </div>
+                        <div class="template-card" onclick="sendExample('我想备考考研数学')">
+                            <div class="template-icon">📐</div>
+                            <div class="template-name">考研数学</div>
+                            <div class="template-desc">备考 · 系统复习</div>
+                        </div>
+                        <div class="template-card" onclick="sendExample('我想学会做PPT')">
+                            <div class="template-icon">📊</div>
+                            <div class="template-name">PPT制作</div>
+                            <div class="template-desc">职场技能</div>
+                        </div>
+                        <div class="template-card" onclick="sendExample('我想学会视频剪辑')">
+                            <div class="template-icon">🎬</div>
+                            <div class="template-name">视频剪辑</div>
+                            <div class="template-desc">自媒体必备</div>
+                        </div>
+                        <div class="template-card" onclick="sendExample('我想学会英语四级')">
+                            <div class="template-icon">📚</div>
+                            <div class="template-name">英语四级</div>
+                            <div class="template-desc">考试 · 3个月</div>
+                        </div>
                     </div>
+                </div>
+                <!-- 快捷操作栏 -->
+                <div class="quick-actions" id="quickActions" style="display:none;">
+                    <button class="quick-btn" onclick="quickAction('quiz')">出题测试</button>
+                    <button class="quick-btn" onclick="quickAction('adjust')">调整计划</button>
+                    <button class="quick-btn" onclick="quickAction('next')">下一步学什么</button>
+                    <button class="quick-btn" onclick="quickAction('export')">导出日历</button>
                 </div>
                 <div class="input-area">
                     <div class="input-wrapper">
@@ -61,11 +104,11 @@
             <!-- 详情面板 -->
             <div class="detail-panel" id="detailPanel" style="display:none;">
                 <div class="detail-tabs">
-                    <button class="tab-btn active" data-tab="skilltree" onclick="switchTab('skilltree')">技能树</button>
-                    <button class="tab-btn" data-tab="resources" onclick="switchTab('resources')">资源推荐</button>
+                    <button class="tab-btn active" data-tab="skilltree" onclick="switchTab('skilltree')">学习路线</button>
+                    <button class="tab-btn" data-tab="resources" onclick="switchTab('resources')">学习资源</button>
                     <button class="tab-btn" data-tab="plan" onclick="switchTab('plan')">学习计划</button>
                     <button class="tab-btn" data-tab="quiz" onclick="switchTab('quiz')">测试记录</button>
-                    <button class="tab-btn" data-tab="stats" onclick="switchTab('stats')">学习统计</button>
+                    <button class="tab-btn" data-tab="stats" onclick="switchTab('stats')">我的进度</button>
                 </div>
                 <div class="detail-content">
                     <div class="tab-pane active" id="tab-skilltree"></div>
@@ -76,12 +119,6 @@
                 </div>
             </div>
         </main>
-    </div>
-
-    <!-- 加载遮罩 -->
-    <div class="loading-overlay" id="loadingOverlay" style="display:none;">
-        <div class="loading-spinner"></div>
-        <div class="loading-text">AI正在思考...</div>
     </div>
 
     <script src="/static/app.js"></script>

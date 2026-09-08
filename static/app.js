@@ -116,8 +116,10 @@ function newConversation() {
     saveConversations();
     renderConvList();
     renderChat();
-    document.getElementById('welcomeScreen').style.display = 'none';
-    document.getElementById('detailPanel').style.display = 'none';
+    const detailPanel = document.getElementById('detailPanel');
+    if (detailPanel) detailPanel.style.display = 'none';
+    const quickActions = document.getElementById('quickActions');
+    if (quickActions) quickActions.style.display = 'none';
 }
 
 function selectConversation(id) {
@@ -141,6 +143,7 @@ function renderChat() {
     const chatSubtitle = document.getElementById('chatSubtitle');
     const messagesEl = document.getElementById('messages');
     const welcome = document.getElementById('welcomeScreen');
+    const quickActions = document.getElementById('quickActions');
 
     if (!conv || !messagesEl || !welcome) return;
 
@@ -148,11 +151,21 @@ function renderChat() {
     if (chatSubtitle) chatSubtitle.textContent = conv.created_at ? `创建于 ${conv.created_at}` : '';
 
     if (conv.messages.length <= 1) {
-        welcome.style.display = 'block';
+        welcome.style.display = 'flex';
         messagesEl.innerHTML = '';
+        if (quickActions) quickActions.style.display = 'none';
         return;
     }
     welcome.style.display = 'none';
+
+    // 有学习计划时显示快捷操作栏
+    if (quickActions) {
+        if (conv.skill_tree && Object.keys(conv.skill_tree).length > 0) {
+            quickActions.style.display = 'flex';
+        } else {
+            quickActions.style.display = 'none';
+        }
+    }
 
     messagesEl.innerHTML = conv.messages.map(msg => {
         return `<div class="message ${msg.role}">
@@ -186,7 +199,7 @@ function sendExample(text) {
 async function sendMessage() {
     const input = document.getElementById('userInput');
     const sendBtn = document.getElementById('sendBtn');
-    const loadingOverlay = document.getElementById('loadingOverlay');
+    const typingIndicator = document.getElementById('typingIndicator');
     const message = input.value.trim();
     if (!message) return;
 
@@ -198,10 +211,17 @@ async function sendMessage() {
     }
     if (!conv) return;
 
+    // 智能补全：收集阶段自动填充默认值，不追问
+    if (conv.stage === 'collecting') {
+        if (!conv.base) conv.base = '零基础';
+        if (!conv.hours || conv.hours === 0) conv.hours = 2;
+        if (!conv.deadline) conv.deadline = '1个月';
+    }
+
     input.value = '';
     input.style.height = 'auto';
     if (sendBtn) sendBtn.disabled = true;
-    if (loadingOverlay) loadingOverlay.style.display = 'flex';
+    if (typingIndicator) typingIndicator.style.display = 'block';
 
     try {
         // 先添加用户消息
@@ -243,10 +263,12 @@ async function sendMessage() {
             chatTitle.textContent = data.conv.goal;
         }
 
-        // 显示详情面板
+        // 显示详情面板和快捷操作栏
         if (data.conv.skill_tree && Object.keys(data.conv.skill_tree).length > 0) {
             const detailPanel = document.getElementById('detailPanel');
             if (detailPanel) detailPanel.style.display = 'flex';
+            const quickActions = document.getElementById('quickActions');
+            if (quickActions) quickActions.style.display = 'flex';
             selectedPlanIndex = 0;
             renderAllDetails();
         }
@@ -262,8 +284,26 @@ async function sendMessage() {
         }
     } finally {
         if (sendBtn) sendBtn.disabled = false;
-        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        if (typingIndicator) typingIndicator.style.display = 'none';
     }
+}
+
+// 快捷操作
+function quickAction(type) {
+    const conv = getCurrentConv();
+    if (!conv) return;
+    const messages = {
+        quiz: '考考我',
+        adjust: '帮我调整一下学习计划',
+        next: '我下一步应该学什么',
+        export: ''
+    };
+    if (type === 'export') {
+        downloadICS();
+        return;
+    }
+    document.getElementById('userInput').value = messages[type];
+    sendMessage();
 }
 
 // ========== Tab切换 ==========
