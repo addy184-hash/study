@@ -41,18 +41,16 @@ if 'conversations' not in st.session_state:
     st.session_state.conversations = load_conversations()
 if 'current_conv_id' not in st.session_state:
     st.session_state.current_conv_id = None
-if 'dark_mode' not in st.session_state:
-    st.session_state.dark_mode = False
 
-dark = st.session_state.dark_mode
-bg = "#0f172a" if dark else "#f1f5f9"
-card_bg = "#1e293b" if dark else "#ffffff"
-text_color = "#e2e8f0" if dark else "#1e293b"
-sub_text = "#94a3b8" if dark else "#64748b"
-border = "#334155" if dark else "#e2e8f0"
+# ========== 主题配色（固定浅色） ==========
+bg = "#f1f5f9"
+card_bg = "#ffffff"
+text_color = "#1e293b"
+sub_text = "#64748b"
+border = "#e2e8f0"
 primary = "#3b82f6"
-user_bubble = "#2563eb" if dark else "#dbeafe"
-assistant_bubble = "#1e293b" if dark else "#f8fafc"
+user_bubble = "#dbeafe"
+assistant_bubble = "#f8fafc"
 
 # ========== 全局样式 ==========
 st.markdown(f"""
@@ -66,7 +64,7 @@ st.markdown(f"""
     .main .block-container {{padding-top: 1rem; padding-bottom: 1rem; max-width: 100%;}}
     section[data-testid="stSidebar"] {{background-color: {card_bg}; border-right: 1px solid {border}; width: 280px !important;}}
     .chat-message {{padding: 1rem; margin-bottom: 0.8rem; border-radius: 12px; max-width: 85%;}}
-    .chat-user {{background-color: {user_bubble}; color: {'white' if dark else '#1e3a8a'}; margin-left: auto; text-align: right;}}
+    .chat-user {{background-color: {user_bubble}; color: #1e3a8a; margin-left: auto; text-align: right;}}
     .chat-assistant {{background-color: {assistant_bubble}; color: {text_color}; border: 1px solid {border};}}
     .conv-item {{padding: 0.7rem 0.8rem; border-radius: 8px; cursor: pointer; margin-bottom: 0.3rem; border: 1px solid transparent;}}
     .conv-item:hover {{background-color: {bg};}}
@@ -135,12 +133,6 @@ with st.sidebar:
                 st.rerun()
 
     st.markdown("---")
-    if st.toggle("暗黑模式", value=dark):
-        st.session_state.dark_mode = True
-    else:
-        st.session_state.dark_mode = False
-    if st.button("应用主题", use_container_width=True):
-        st.rerun()
 
     api_key = st.text_input("DeepSeek API Key", type="password", key="api_key_input")
     if api_key:
