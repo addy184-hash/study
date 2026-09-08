@@ -715,10 +715,41 @@ def generate_plan_reply(conv: dict) -> str:
 def detect_intent(message: str, stage: str, conv: dict) -> dict:
     """
     细粒度意图识别，返回 {"action": "...", "target": "...", "summary": "..."}
+    阶段感知：collecting阶段优先识别学习目标，避免误判
     """
-    # 规则匹配（快速通道，不用调LLM）
     msg = message.strip()
 
+    # ===== 收集学情阶段：优先识别学习目标 =====
+    if stage == "collecting":
+        # 明确的学习目标关键词
+        goal_keywords = ["学", "速成", "学会", "掌握", "入门", "精通", "备考", "考研", "考级",
+                         "学习", "想学", "要学", "准备学", "开始学", "自学", "培训"]
+        # 时间相关词（配合学习目标）
+        time_keywords = ["天", "周", "月", "个月", "年", "小时", "之内", "以内"]
+
+        is_goal = any(k in msg for k in goal_keywords)
+        has_time = any(k in msg for k in time_keywords)
+
+        # 如果包含学习目标词，直接判定为补充信息
+        if is_goal:
+            return {"action": "clarify", "summary": "用户提出学习目标"}
+
+        # 用默认设置
+        if "默认" in msg and ("设置" in msg or "就行" in msg or "开始" in msg):
+            return {"action": "use_default"}
+
+        # 打招呼
+        if msg in ["你好", "hi", "hello", "在吗", "在么", "嗨"]:
+            return {"action": "greeting"}
+
+        # 收集阶段不触发motivation（除非非常明确的消极情绪）
+        if any(k in msg for k in ["想放弃", "学不下去", "太难了不想学"]):
+            return {"action": "motivation"}
+
+        # 其他情况都当作补充信息
+        return {"action": "clarify", "summary": "用户补充学情信息"}
+
+    # ===== 学习中阶段：完整意图识别 =====
     # 打招呼
     if msg in ["你好", "hi", "hello", "在吗", "在么", "嗨"]:
         return {"action": "greeting"}
@@ -745,8 +776,8 @@ def detect_intent(message: str, stage: str, conv: dict) -> dict:
     if any(k in msg for k in ["测试", "出题", "考考我", "练习", "做题", "测验"]):
         return {"action": "quiz"}
 
-    # 情绪/鼓励
-    if any(k in msg for k in ["太难了", "学不会", "想放弃", "好累", "焦虑", "压力大", "没信心", "学不下去"]):
+    # 情绪/鼓励（必须是明确的消极情绪）
+    if any(k in msg for k in ["太难了", "学不会", "想放弃", "好累", "焦虑", "压力大", "没信心", "学不下去", "不想学了"]):
         return {"action": "motivation"}
 
     # 感谢/结束
@@ -755,13 +786,13 @@ def detect_intent(message: str, stage: str, conv: dict) -> dict:
 
     # LLM深度判断
     system = """你是对话意图识别专家，判断用户消息的意图。
+当前阶段：learning（用户已经有学习计划，正在学习中）
 可选意图：
 - adjust: 用户汇报学习进度、说某个知识点掌握了/没掌握、遇到困难、要求调整计划
 - answer: 用户问知识性问题、概念解释、学习方法
-- clarify: 用户在回答之前的问题、补充信息
 - motivation: 用户表达消极情绪、需要鼓励
-只返回JSON：{"action":"adjust/answer/clarify/motivation","summary":"一句话摘要"}"""
-    result = call_llm(system, f"对话阶段：{stage}\n用户消息：{msg}")
+只返回JSON：{"action":"adjust/answer/motivation","summary":"一句话摘要"}"""
+    result = call_llm(system, f"用户消息：{msg}")
     if "error" not in result:
         return result
     return {"action": "answer", "summary": ""}
