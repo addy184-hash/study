@@ -21,7 +21,6 @@ if os.path.exists(STATIC_DIR):
 class ChatRequest(BaseModel):
     conv: Dict[str, Any]
     message: str
-    image: Optional[str] = None
 
 
 class IcsRequest(BaseModel):
@@ -47,17 +46,8 @@ async def chat(req: ChatRequest):
     conv = req.conv
     message = req.message
 
-    # 处理图片：如果用户只发了图片没有文字，给一个确认回复
-    if req.image and not message.strip():
-        reply = "收到你的学习记录图片！已保存到对话中。\n\n你可以配文说明学习内容，比如「今天学了2小时，这是我的笔记」，我会帮你记录学习时长并更新进度。"
-        return {"conv": conv, "reply": reply}
-
     # 调用agents.py的核心逻辑
     reply = process_chat_message(conv, message)
-
-    # 如果有图片，在回复末尾加一个确认
-    if req.image and message.strip():
-        reply += "\n\n（已收到你上传的学习记录图片）"
 
     return {
         "conv": conv,

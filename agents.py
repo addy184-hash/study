@@ -1070,6 +1070,61 @@ def process_chat_message(conv: dict, user_message: str) -> str:
 
     # ===== 学习中阶段 =====
     elif stage == "learning":
+        # 优先检查是否正在答题中（用户输入的是答案），必须在所有action之前
+        if conv.get("quiz_active") and conv.get("quiz_questions"):
+            # 允许用户取消测试
+            if action == "cancel_quiz":
+                conv["quiz_active"] = False
+                conv["quiz_questions"] = []
+                return "已取消当前测试。你可以说「考考我」重新开始，或者指定阶段，比如「考考我气体」。"
+            questions = conv["quiz_questions"]
+            # 解析用户答案
+            user_answers = _parse_quiz_answers(user_message, len(questions))
+            if any(user_answers):
+                # 批改
+                result = grade_quiz(questions, user_answers)
+                conv["quiz_active"] = False
+                conv["quiz_result"] = result
+                conv["quiz_questions"] = []
+
+                # 记录到测试历史
+                if "quiz_history" not in conv:
+                    conv["quiz_history"] = []
+                conv["quiz_history"].append({
+                    "stage": conv.get("current_stage", ""),
+                    "score": result["score"],
+                    "correct": result["correct"],
+                    "total": result["total"],
+                    "wrong": result["wrong"],
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M")
+                })
+
+                # 更新用户画像
+                profile = conv.get("user_profile", {})
+                conv["user_profile"] = update_user_profile(profile, conv, result)
+
+                # 生成回复
+                reply = f"测试完成！得分：{result['score']}分（{result['correct']}/{result['total']}正确）\n\n"
+                if result["score"] >= 80:
+                    reply += "表现优秀！这个阶段掌握得很好，可以继续学习下一阶段。\n\n"
+                elif result["score"] >= 60:
+                    reply += "还不错，但有一些知识点需要加强。\n\n"
+                else:
+                    reply += "这个阶段还需要多复习，建议重新学习相关知识点。\n\n"
+
+                if result["wrong"]:
+                    reply += "错题回顾：\n"
+                    for i, w in enumerate(result["wrong"], 1):
+                        reply += f"{i}. {w['question']}\n"
+                        reply += f"   你的答案：{w['your_answer']}\n"
+                        reply += f"   正确答案：{w['correct_answer']}\n"
+                        reply += f"   解析：{w['explanation']}\n\n"
+
+                reply += "成绩已记录，可以在下方「学习统计」查看历史成绩。"
+                return reply
+            else:
+                return "没有识别到答案，请按格式回答：1.A 2.回答内容 3.B ...\n\n想取消测试说「取消测试」。"
+
         # 记录学习时长
         if action == "study_time":
             return record_study_time(conv, user_message)
@@ -1163,56 +1218,6 @@ def process_chat_message(conv: dict, user_message: str) -> str:
                 reply += "\n"
             reply += "请按顺序回答，格式：1.A 2.你的回答 3.C ...\n回答后我会批改并记录成绩。\n\n想取消测试说「取消测试」。"
             return reply
-
-        # 检查是否正在答题中（用户输入的是答案）
-        if conv.get("quiz_active") and conv.get("quiz_questions"):
-            questions = conv["quiz_questions"]
-            # 解析用户答案
-            user_answers = _parse_quiz_answers(user_message, len(questions))
-            if any(user_answers):
-                # 批改
-                result = grade_quiz(questions, user_answers)
-                conv["quiz_active"] = False
-                conv["quiz_result"] = result
-                conv["quiz_questions"] = []
-
-                # 记录到测试历史
-                if "quiz_history" not in conv:
-                    conv["quiz_history"] = []
-                conv["quiz_history"].append({
-                    "stage": conv.get("current_stage", ""),
-                    "score": result["score"],
-                    "correct": result["correct"],
-                    "total": result["total"],
-                    "wrong": result["wrong"],
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M")
-                })
-
-                # 更新用户画像
-                profile = conv.get("user_profile", {})
-                conv["user_profile"] = update_user_profile(profile, conv, result)
-
-                # 生成回复
-                reply = f"测试完成！得分：{result['score']}分（{result['correct']}/{result['total']}正确）\n\n"
-                if result["score"] >= 80:
-                    reply += "表现优秀！这个阶段掌握得很好，可以继续学习下一阶段。\n\n"
-                elif result["score"] >= 60:
-                    reply += "还不错，但有一些知识点需要加强。\n\n"
-                else:
-                    reply += "这个阶段还需要多复习，建议重新学习相关知识点。\n\n"
-
-                if result["wrong"]:
-                    reply += "错题回顾：\n"
-                    for i, w in enumerate(result["wrong"], 1):
-                        reply += f"{i}. {w['question']}\n"
-                        reply += f"   你的答案：{w['your_answer']}\n"
-                        reply += f"   正确答案：{w['correct_answer']}\n"
-                        reply += f"   解析：{w['explanation']}\n\n"
-
-                reply += "成绩已记录，可以在下方「学习统计」查看历史成绩。"
-                return reply
-            else:
-                return "没有识别到答案，请按格式回答：1.A 2.回答内容 3.B ..."
 
         if action == "adjust":
             # 先检查是否是在说某个知识点掌握了

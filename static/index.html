@@ -122,14 +122,8 @@
                 </div>
                 <div class="input-area">
                     <div class="input-wrapper">
-                        <button class="img-btn" onclick="document.getElementById('imgInput').click()" title="上传图片/拍照">📷</button>
-                        <input type="file" id="imgInput" accept="image/*" capture="environment" style="display:none" onchange="handleImageUpload(event)">
                         <textarea id="userInput" placeholder="输入你的学习目标或进度反馈..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
                         <button class="send-btn" onclick="sendMessage()" id="sendBtn">发送</button>
-                    </div>
-                    <div class="img-preview" id="imgPreview" style="display:none;">
-                        <img id="previewImg" src="" alt="预览">
-                        <button class="img-remove" onclick="removeImage()">×</button>
                     </div>
                     <div class="input-hint">按 Enter 发送，Shift+Enter 换行</div>
                 </div>
