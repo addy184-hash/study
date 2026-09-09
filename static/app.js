@@ -349,10 +349,12 @@ async function sendMessage() {
         // 显示详情面板和快捷操作栏
         if (data.conv.skill_tree && Object.keys(data.conv.skill_tree).length > 0) {
             const detailPanel = document.getElementById('detailPanel');
+            const wasHidden = detailPanel && detailPanel.style.display === 'none';
             if (detailPanel) detailPanel.style.display = 'flex';
             const quickActions = document.getElementById('quickActions');
             if (quickActions) quickActions.style.display = 'flex';
-            selectedPlanIndex = 0;
+            // 只有第一次显示详情面板时才重置方案选择，调优时保持用户选择
+            if (wasHidden) selectedPlanIndex = 0;
             renderAllDetails();
         }
 

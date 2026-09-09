@@ -1230,7 +1230,27 @@ def process_chat_message(conv: dict, user_message: str) -> str:
                     for kp in s.get("knowledge_points", []):
                         all_kps.append(kp.get("name","") if isinstance(kp,dict) else str(kp))
 
-            newly_completed = [kp for kp in all_kps if kp in user_message and kp not in completed]
+            # 否定词检测：避免"还没学会XX"被误判为已掌握
+            negation_words = ["没", "不", "未", "不会", "不懂", "还没", "尚未", "很难", "太难", "搞不懂", "学不会"]
+            def is_positive_mention(kp, msg):
+                """检查知识点是否被正面提及（已掌握），排除否定语境"""
+                idx = msg.find(kp)
+                if idx < 0:
+                    return False
+                # 检查知识点前面的10个字符内是否有否定词
+                prefix = msg[max(0, idx-10):idx]
+                for neg in negation_words:
+                    if neg in prefix:
+                        return False
+                # 检查是否有"掌握了""学会了""搞定了"等正面词
+                positive_words = ["掌握", "学会", "搞定", "完成", "学完", "看懂", "理解了", "没问题", "很简单", "太简单"]
+                context = msg[max(0, idx-5):idx+len(kp)+5]
+                if any(p in context for p in positive_words):
+                    return True
+                # 如果没有明确正面词，但也没有否定词，且用户在汇报进度，默认视为已掌握
+                return True
+
+            newly_completed = [kp for kp in all_kps if kp not in completed and is_positive_mention(kp, user_message)]
             if newly_completed:
                 for kp in newly_completed:
                     completed.append(kp)
@@ -1238,7 +1258,7 @@ def process_chat_message(conv: dict, user_message: str) -> str:
 
             # 检测是否是整体周期变化（缩短/延长天数），需要重新生成完整计划
             import re as _re
-            period_match = _re.search(r'(缩短|压缩|延长|改成|改为|变成|控制在|用)\s*(\d+)\s*[天周个月]', user_message)
+            period_match = _re.search(r'(缩短|压缩|延长|改成|改为|变成|控制在|用)\s*(\d+)\s*(天|周|个月|月)', user_message)
             if period_match and not newly_completed:
                 new_deadline = period_match.group(0)
                 conv["deadline"] = new_deadline
